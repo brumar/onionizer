@@ -57,8 +57,10 @@ def discount_function(original_price, context):
 Less Yummy!
 
 The onionizer example is a bit more concise (and more flat) as there is no need to define and return a wrapper function (while keeping in mind to use `functools.wraps` to preserve the docstring and the signature of the wrapped function).
+
 Yielding `onionizer.UNCHANGED` ensure the reader that the arguments are not modified by the middleware.
 Of course, you can yield other values if you want to mutate the arguments (more on that later).
+
 If there is an incompatibility of signatures, the middleware will raise an error at wrapping time, whereas the decorator syntax will fail at runtime one day you did not expect.
 
 ## Motivation
