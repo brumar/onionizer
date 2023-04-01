@@ -4,11 +4,11 @@ from abc import ABC
 from contextlib import ExitStack
 from typing import Callable, Any, Iterable, Sequence, TypeVar, Generator
 
-T = TypeVar("T")
+T = TypeVar("T")  # pragma: no mutate
 
-OnionGenerator = Generator[Any, T, T]
+OnionGenerator = Generator[Any, T, T]  # pragma: no mutate
 
-UNCHANGED = object()
+UNCHANGED = 123  # pragma: no mutate
 
 __all__ = [
     "wrap_around",
@@ -66,7 +66,8 @@ def wrap_around(
     func: Callable[..., Any], middlewares: list, sigcheck: bool = True
 ) -> Callable[..., Any]:
     """
-    It takes a function and a list of middlewares, and returns a function that calls the middlewares in order, then the
+    It takes a function and a list of middlewares,
+    and returns a function that calls the middlewares in order, then the
     function, then the middlewares in reverse order
 
     def func(x, y):
@@ -107,7 +108,13 @@ def wrap_around(
                     continue
                 coroutine = arguments.call_function(middleware)
                 coroutines.append(coroutine)
-                raw_arguments = coroutine.send(None)
+                try:
+                    raw_arguments = coroutine.send(None)
+                except AttributeError:
+                    raise TypeError(
+                        f"Middleware {middleware.__name__} is not a coroutine. "
+                        f"Did you forget to use a yield statement?"
+                    )
                 arguments = _refine(raw_arguments, arguments)
             # just reached the core of the onion
             output = arguments.call_function(func)
@@ -131,26 +138,18 @@ def _inspect_signatures(func, middlewares):
     func_signature = inspect.signature(func)
     func_signature_params = func_signature.parameters
     for middleware in middlewares:
-        if not hasattr(middleware, "ignore_signature_check") and not all(
-            hasattr(middleware, attr) for attr in ("__enter__", "__exit__")
-        ):
+        if not (
+            hasattr(middleware, "ignore_signature_check")
+            and middleware.ignore_signature_check is True
+        ) and not all(hasattr(middleware, attr) for attr in ("__enter__", "__exit__")):
             middleware_signature = inspect.signature(middleware)
             middleware_signature_params = middleware_signature.parameters
             if middleware_signature_params != func_signature_params:
                 raise ValueError(
-                    f"Expected arguments of the target function mismatch middleware expecped arguments. {func.__name__}{func_signature} "
+                    f"Expected arguments of the target function mismatch "
+                    f"middleware expected arguments. {func.__name__}{func_signature} "
                     f"differs with {middleware.__name__}{middleware_signature}"
                 )
-
-
-def contextmanager(manager):
-    @functools.wraps(manager)
-    def wrapped(*args, **kwargs):
-        with manager():
-            output = yield UNCHANGED
-            return output
-
-    return wrapped
 
 
 class ArgsMode(ABC):
@@ -188,9 +187,10 @@ def _refine(arguments, previous_arguments):
         return previous_arguments
     if isinstance(arguments, ArgsMode):
         return arguments
-    if len(arguments) != 2:
+    if not isinstance(arguments, Sequence) or len(arguments) != 2:
         raise TypeError(
-            "arguments must be a tuple of length 2, maybe use onionizer.PositionalArgs or onionizer.MixedArgs instead"
+            "arguments must be a tuple of length 2, "
+            "maybe use onionizer.PositionalArgs or onionizer.MixedArgs instead"
         )
     args, kwargs = arguments
     return MixedArgs(args, kwargs)
