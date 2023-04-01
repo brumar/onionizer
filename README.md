@@ -28,7 +28,7 @@ def ensure_that_total_discount_is_acceptable(original_price, context):
     # you can do yummy stuff here (before the wrapped function is called)
     result = yield onionizer.UNCHANGED
     # and here (after the wrapped function is called)
-    if original_price/result > 0.5:
+    if original_price/result < 0.5:
         raise ValueError("Total discount is too high")
     return result
 
