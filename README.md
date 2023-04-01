@@ -1,7 +1,6 @@
 # onionizer
 
 [![PyPI - Version](https://img.shields.io/pypi/v/onionizer.svg)](https://pypi.org/project/onionizer)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/onionizer.svg)](https://pypi.org/project/onionizer)
 
 -----
 
