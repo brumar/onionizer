@@ -1,0 +1,22 @@
+[project]
+name = "onionizer"
+version = "0.1"
+python = ">=3.7"
+
+[dependencies]
+
+[dev-dependencies]
+pytest = '7'
+nox = '2022.11.21'
+ruff = '0.0.260'
+pre-commit= '3.2.1'
+mkdocs = '1.4.2'
+
+[tool.poetry]
+name = "onionizer"
+version = "0.1"
+description = "A Python package to add middlewares to any function"
+authors = ["Bruno Martin <martin.bruno.mail@gmail.com>"]
+license = "MIT"
+repository = "https://github.com/brumar/onionizer"
+documentation = "https://brumar.github.io/onionizer-docs/"
