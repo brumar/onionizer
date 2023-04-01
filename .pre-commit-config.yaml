@@ -8,6 +8,6 @@ repos:
     rev: 3.9.2
     hooks:
     - id: flake8
-    args: # arguments to configure flake8
+      args: # arguments to configure flake8
         # making it sort line length compatible with black
         - "--max-line-length=88"

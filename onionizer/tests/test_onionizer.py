@@ -178,12 +178,3 @@ def test_uncompatible_signature_but_disable_sigcheck(func_that_adds):
 
     onionizer.wrap_around(func_that_adds, middlewares=[middleware1], sigcheck=False)
     assert True
-
-
-def test_uncompatible_signature_but_disable_sigcheck(func_that_adds):
-    def middleware1(*args):
-        result = yield onionizer.UNCHANGED
-        return result
-
-    onionizer.wrap_around(func_that_adds, middlewares=[middleware1], sigcheck=False)
-    assert True
