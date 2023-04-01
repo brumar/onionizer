@@ -99,8 +99,7 @@ def middleware2(x, y):
 
 wrapped_func = onionizer.wrap_around(func, [middleware1, middleware2])
 result = wrapped_func(0, 0)
-
-assert result == 2
+print(result) # 2
 ```
 
 Tracing the execution layers by layers :
@@ -165,7 +164,7 @@ def wont_do_anything(x: int, y: int):
 
 ### Support for context managers
 
-Onionizer middlewares are context managers out of the box. You can use this to handle resources or exceptions (try/except around the yield statement wont work for the middlewares).
+context managers are de facto supported by onionizer.
 
 ```python
 def func(x, y):
@@ -180,8 +179,7 @@ def exception_catcher():
         raise RuntimeError("Exception caught") from e
 
 wrapped_func = onionizer.wrap_around(func, [exception_catcher()])
-with pytest.raises(RuntimeError) as e:
-    wrapped_func(x=1, y=0)
+wrapped_func(x=1, y=0) # raises RuntimeError("Exception caught")
 ```
 
 ### Support for simple functions
