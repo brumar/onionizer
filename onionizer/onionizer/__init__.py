@@ -2,4 +2,4 @@
 #
 # SPDX-License-Identifier: MIT
 
-from .onionizer import *
+from .onionizer import *  # noqa: F401, F403
