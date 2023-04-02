@@ -50,7 +50,7 @@ def ensure_that_total_discount_is_acceptable(func):
     @functools.wraps(func)
     def wrapper(original_price, context):
         result = func(original_price, context)
-        if original_price/result > 0.5:
+        if result < original_price/2:
             raise ValueError("Total discount is too high")
         return result
     return wrapper
