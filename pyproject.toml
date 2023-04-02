@@ -25,6 +25,13 @@ authors = [
 license = "MIT"
 [project.urls]
 "Source code" = "https://github.com/brumar/onionizer"
+[project.optional-dependencies]
+dev = [
+  "pre-commit",
+  "black",
+  "mkdocs==1.4.2",
+  "ruff==0.0.260"
+]
 
 [dependencies]
 
@@ -33,9 +40,6 @@ extra-dependencies = [
   "pytest==7",
   'pytest-cov',
   "nox==2022.11.21",
-  "ruff==0.0.260",
-  "pre-commit==3.2.1",
-  "mkdocs==1.4.2"
 ]
 
 

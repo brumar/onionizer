@@ -4,6 +4,10 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/onionizer.svg)](https://pypi.org/project/onionizer)
 [![Mutation tested with PIT](https://img.shields.io/badge/-Mutation%20tested%20with%20mutmut-blue.svg)](http://pitest.org/)
 [![brumar](https://circleci.com/gh/brumar/onionizer.svg?style=shield)](https://circleci.com/gh/brumar/onionizer)
+[![codecov](https://codecov.io/gh/brumar/onionizer/branch/main/graph/badge.svg?token=SJ55K5MH0U)](https://codecov.io/gh/brumar/onionizer)
+![versions](https://img.shields.io/pypi/pyversions/pybadges.svg)
+compatible python version : 3.6, 3.7, 3.8, 3.9
+[]
 
 -----
 
