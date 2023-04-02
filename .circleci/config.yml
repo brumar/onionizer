@@ -26,13 +26,12 @@ jobs:
 workflows:
   ci:
     when:
-      or:
-        - equal: [main, << pipeline.git.branch >>]
+      - equal: [main, << pipeline.git.branch >>]
     jobs:
       - main
   pytest:
     when:
-      or:
-        - not: [main, << pipeline.git.branch >>]
+      - not:
+        - equal: [main, << pipeline.git.branch >>]
     jobs:
       - develop
