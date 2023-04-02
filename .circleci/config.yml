@@ -11,6 +11,8 @@ jobs:
     steps:
       - checkout
       - run: pip install hatch
+      - run: pip install pyenv
+      - run: pyenv install 3.7 3.8 3.9 3.10
       - run: hatch run nox -s
       - run: pytest --cov=onionizer
 
