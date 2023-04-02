@@ -1,0 +1,9 @@
+jobs:
+  build:
+    docker:
+      - image: circleci/python:3.9
+    steps:
+      - checkout
+      - run: pip install hatch
+      - run: hatch run nox -s
+      - run: pytest --cov=onionizer
