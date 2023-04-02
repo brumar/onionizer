@@ -24,6 +24,7 @@ jobs:
             equal: [ develop, << pipeline.git.branch >> ]
           steps:
             - run: pip install pytest
+            - run: pip install pytest-cov
             - run: pytest --cov=onionizer
 
 # Orchestrate jobs using workflows
