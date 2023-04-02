@@ -10,10 +10,16 @@ jobs:
       - image: cimg/python:3.11.2
     steps:
       - checkout
-      - run: pip install hatch
-      - run: pyenv install 3.7 3.8 3.9 3.10
-      - run: hatch run nox -s
-      - run: pytest --cov=onionizer
+      - |
+        if [ "$CIRCLE_BRANCH" = "develop" ]; then
+          pytest --cov=onionizer
+        else
+          pyenv install 3.7 3.8 3.9 3.10
+          pyenv global 3.7 3.8 3.9 3.10
+          pip install hatch
+          hatch run nox -s
+          pytest --cov=onionizer
+        fi
 
 # Orchestrate jobs using workflows
 # See: https://circleci.com/docs/configuration-reference/#workflows
