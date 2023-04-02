@@ -82,5 +82,5 @@ exclude_lines = [
   "if TYPE_CHECKING:",
 ]
 [tool.mutmut]
-paths_to_mutate='/home/bruno/onionlib/onionizer/onionizer/'
-tests_dir='/home/bruno/onionlib/onionizer/tests/'
+paths_to_mutate='./onionizer/onionizer/'
+tests_dir='./onionizer/tests/'
