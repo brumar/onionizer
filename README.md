@@ -1,8 +1,8 @@
-[![Mutation tested with PIT](https://img.shields.io/badge/-Mutation%20tested%20with%20mutmut-blue.svg)](http://pitest.org/)
 
 # onionizer
 
 [![PyPI - Version](https://img.shields.io/pypi/v/onionizer.svg)](https://pypi.org/project/onionizer)
+[![Mutation tested with PIT](https://img.shields.io/badge/-Mutation%20tested%20with%20mutmut-blue.svg)](http://pitest.org/)
 
 -----
 
