@@ -28,12 +28,14 @@ license = "MIT"
 
 [dependencies]
 
-[project.optional-dependencies]
-dev = ["pytest==7",
-"nox==2022.11.21",
-"ruff==0.0.260",
-"pre-commit==3.2.1",
-"mkdocs==1.4.2"]
+[tool.hatch.envs.default]
+extra-dependencies = [
+  "pytest==7",
+  "nox==2022.11.21",
+  "ruff==0.0.260",
+  "pre-commit==3.2.1",
+  "mkdocs==1.4.2"
+]
 
 
 [tool.hatch.build.targets.sdist]
