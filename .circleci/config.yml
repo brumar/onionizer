@@ -1,6 +1,8 @@
 # Use the latest 2.1 version of CircleCI pipeline process engine.
 # See: https://circleci.com/docs/configuration-reference
 version: 2.1
+orbs:
+  codecov: codecov/codecov@3.2.3
 
 # Define a job to be invoked later in a workflow.
 # See: https://circleci.com/docs/configuration-reference/#jobs
@@ -10,10 +12,6 @@ jobs:
       - image: cimg/python:3.11.2
     steps:
       - checkout
-      - run: pyenv install 3.7 3.8 3.9 3.10
-      - run: pyenv global 3.7 3.8 3.9 3.10
-      - run: pip install hatch
-      - run: hatch run nox -s
   develop:
     docker:
       - image: cimg/python:3.11.2
@@ -25,7 +23,19 @@ jobs:
           steps:
             - run: pip install pytest
             - run: pip install pytest-cov
-            - run: pytest --cov=onionizer
+            - run: pytest --cov=onionizer --cov-report=xml
+            - codecov/upload:
+                file: ./coverage.xml
+      - when:
+          condition:
+            equal: [ main, << pipeline.git.branch >> ]
+          steps:
+            - run: pyenv install 3.7 3.8 3.9 3.10
+            - run: pyenv global 3.7 3.8 3.9 3.10
+            - run: pip install hatch
+            - run: hatch run nox -s
+            - codecov/upload:
+                file: ./coverage.xml
 
 # Orchestrate jobs using workflows
 # See: https://circleci.com/docs/configuration-reference/#workflows
