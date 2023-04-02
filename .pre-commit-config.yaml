@@ -1,13 +1,16 @@
 repos:
 -   repo: https://github.com/ambv/black
-    rev: 21.9b0
+    rev: 23.3.0
     hooks:
     - id: black
       language_version: python3.8
--   repo: https://gitlab.com/pycqa/flake8
-    rev: 3.9.2
+-   repo: https://github.com/python/mypy
+    rev: release-0.910
     hooks:
-    - id: flake8
-      args: # arguments to configure flake8
-        # making it sort line length compatible with black
-        - "--max-line-length=88"
+      - id: mypy
+        args: ["--ignore-missing-imports"]
+- repo: https://github.com/charliermarsh/ruff-pre-commit
+  # Ruff version.
+  rev: 'v0.0.260'
+  hooks:
+    - id: ruff
