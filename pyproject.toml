@@ -22,7 +22,7 @@ keywords = [
 authors = [
   { name = "bruno", email = "martin.bruno.mail@gmail.com" },
 ]
-license = "MIT"
+license = {text = "MIT"}
 [project.urls]
 "Source code" = "https://github.com/brumar/onionizer"
 [project.optional-dependencies]
