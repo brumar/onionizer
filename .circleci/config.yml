@@ -5,25 +5,34 @@ version: 2.1
 # Define a job to be invoked later in a workflow.
 # See: https://circleci.com/docs/configuration-reference/#jobs
 jobs:
-  firstjob:
+  main:
     docker:
       - image: cimg/python:3.11.2
     steps:
       - checkout
-      - |
-        if [ "$CIRCLE_BRANCH" = "develop" ]; then
-          pytest --cov=onionizer
-        else
-          pyenv install 3.7 3.8 3.9 3.10
-          pyenv global 3.7 3.8 3.9 3.10
-          pip install hatch
-          hatch run nox -s
-          pytest --cov=onionizer
-        fi
+      - pyenv install 3.7 3.8 3.9 3.10
+      - pyenv global 3.7 3.8 3.9 3.10
+      - pip install hatch
+      - hatch run nox -s
+  develop:
+    docker:
+      - image: cimg/python:3.11.2
+    steps:
+      - checkout
+      - pytest --cov=onionizer
 
 # Orchestrate jobs using workflows
 # See: https://circleci.com/docs/configuration-reference/#workflows
 workflows:
   ci:
+    when:
+      or:
+        - equal: [main, << pipeline.git.branch >>]
     jobs:
-      - firstjob
+      - main
+  pytest:
+    when:
+      or:
+        - not: [main, << pipeline.git.branch >>]
+    jobs:
+      - develop
