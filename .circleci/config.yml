@@ -10,28 +10,20 @@ jobs:
       - image: cimg/python:3.11.2
     steps:
       - checkout
-      - pyenv install 3.7 3.8 3.9 3.10
-      - pyenv global 3.7 3.8 3.9 3.10
-      - pip install hatch
-      - hatch run nox -s
+      - run: pyenv install 3.7 3.8 3.9 3.10
+      - run: pyenv global 3.7 3.8 3.9 3.10
+      - run: pip install hatch
+      - run: hatch run nox -s
   develop:
     docker:
       - image: cimg/python:3.11.2
     steps:
       - checkout
-      - pytest --cov=onionizer
+      - run: pytest --cov=onionizer
 
 # Orchestrate jobs using workflows
 # See: https://circleci.com/docs/configuration-reference/#workflows
 workflows:
-  ci:
-    when:
-      - equal: [main, << pipeline.git.branch >>]
-    jobs:
-      - main
   pytest:
-    when:
-      - not:
-        - equal: [main, << pipeline.git.branch >>]
     jobs:
       - develop
