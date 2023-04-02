@@ -6,8 +6,6 @@
 [![brumar](https://circleci.com/gh/brumar/onionizer.svg?style=shield)](https://circleci.com/gh/brumar/onionizer)
 [![codecov](https://codecov.io/gh/brumar/onionizer/branch/main/graph/badge.svg?token=SJ55K5MH0U)](https://codecov.io/gh/brumar/onionizer)
 ![versions](https://img.shields.io/pypi/pyversions/pybadges.svg)
-compatible python version : 3.6, 3.7, 3.8, 3.9
-[]
 
 -----
 
@@ -52,7 +50,7 @@ def ensure_that_total_discount_is_acceptable(func):
     @functools.wraps(func)
     def wrapper(original_price, context):
         result = func(original_price, context)
-        if original_price/result > 0.5:
+        if result < original_price/2:
             raise ValueError("Total discount is too high")
         return result
     return wrapper

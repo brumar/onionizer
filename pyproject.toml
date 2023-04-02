@@ -22,7 +22,7 @@ keywords = [
 authors = [
   { name = "bruno", email = "martin.bruno.mail@gmail.com" },
 ]
-license = "MIT"
+license = {text = "MIT"}
 [project.urls]
 "Source code" = "https://github.com/brumar/onionizer"
 [project.optional-dependencies]
@@ -40,6 +40,7 @@ extra-dependencies = [
   "pytest==7",
   'pytest-cov',
   "nox==2022.11.21",
+  'mutmut==2.4.3',
 ]
 
 
