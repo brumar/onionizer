@@ -21,9 +21,10 @@ jobs:
           condition:
             equal: [ develop, << pipeline.git.branch >> ]
           steps:
-            - run: pip install pytest
-            - run: pip install pytest-cov
-            - run: pytest --cov=onionizer --cov-report=xml
+            - run: pip install hatch
+            - run: hatch run test:cov
+            - run: hatch run test:mutmut
+            - run: hatch build
             - codecov/upload:
                 file: ./coverage.xml
       - when:
@@ -33,7 +34,9 @@ jobs:
             - run: pyenv install 3.7 3.8 3.9 3.10
             - run: pyenv global 3.7 3.8 3.9 3.10
             - run: pip install hatch
-            - run: hatch run nox -s
+            - run: hatch run test:cov
+            - run: hatch run test:mutmut
+            - run: hatch build
             - codecov/upload:
                 file: ./coverage.xml
 
