@@ -62,8 +62,8 @@ packages = ["onionizer/onionizer"]
 path = "onionizer/onionizer/__about__.py"
 
 [tool.hatch.envs.default.scripts]
-cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=onionizer --cov=tests {args}"
-no-cov = "cov --no-cov {args}"
+cov = "pytest --cov-report=xml --cov=onionizer"
+mutations = "mutmut run"
 
 [[tool.hatch.envs.test.matrix]]
 python = ["37", "38", "39", "310", "311"]
