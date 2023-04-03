@@ -35,7 +35,7 @@ jobs:
             - run: pyenv global 3.7 3.8 3.9 3.10
             - run: pip install hatch
             - run: hatch run test:cov
-            - run: hatch run test:mutations
+            - run: hatch run test:mutmut
             - run: hatch build
             - codecov/upload:
                 file: ./coverage.xml
