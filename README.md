@@ -24,6 +24,12 @@
 
 WARNING : this readme is a mess, I am working on it. Only the Introduction is acceptable at the moment.
 
+todo : 
+- remove signature check (and remove part of the doc that is related to it)
+- yield None is enough to understand that arguments are not changed (no need for onionizer.Unchanged)
+- Maybe there is no need for the KeywordArgs (a mapping is easy to recognize), only the PositionalArgs is needed to distinguish between positional and the mixture of positional + keyword arguments.
+... or maybe just having Params(args=(), kwargs={})
+
 Onionizer is a library that makes decorators easier to read, write and chain.
 Let's review the anatomy of a classical decorator:
 
@@ -173,12 +179,9 @@ def middleware2(x: int, y: int):
     return result
 wrapped_func = onionizer.wrap_around(func, [middleware1, middleware2])
 ```
-And if you want to keep the arguments unchanged, you can use `onionizer.UNCHANGED` :
-```python
-def wont_do_anything(x: int, y: int):
-    result = yield onionizer.UNCHANGED
-    return result
-```
+
+
+
 
 
 ### Support for simple functions
