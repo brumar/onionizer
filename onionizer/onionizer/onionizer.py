@@ -182,8 +182,8 @@ class MixedArgs(ArgsMode):
         return func(*self.args, **self.kwargs)
 
 
-def _refine(arguments, previous_arguments):
-    if arguments is UNCHANGED:
+def _refine(arguments, previous_arguments, accept_none=False):
+    if arguments is UNCHANGED or (accept_none and arguments is None):
         return previous_arguments
     if isinstance(arguments, ArgsMode):
         return arguments

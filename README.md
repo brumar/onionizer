@@ -2,7 +2,7 @@
 # onionizer
 
 [![PyPI - Version](https://img.shields.io/pypi/v/onionizer.svg)](https://pypi.org/project/onionizer)
-[![Mutation tested with PIT](https://img.shields.io/badge/-Mutation%20tested%20with%20mutmut-blue.svg)](http://pitest.org/)
+[![Mutation tested with mutmut](https://img.shields.io/badge/mutation%20tested-mutmut-green)](https://mutmut.readthedocs.io/)
 [![brumar](https://circleci.com/gh/brumar/onionizer.svg?style=shield)](https://circleci.com/gh/brumar/onionizer)
 [![codecov](https://codecov.io/gh/brumar/onionizer/branch/main/graph/badge.svg?token=SJ55K5MH0U)](https://codecov.io/gh/brumar/onionizer)
 ![versions](https://img.shields.io/pypi/pyversions/pybadges.svg)
@@ -22,57 +22,66 @@
 
 ## Introduction
 
-Onionizer is a library that allows you to wrap a function with a list of middlewares.
-Think of it of a more yumy-yumy way to create and use decorators.
+WARNING : this readme is a mess, I am working on it. Only the Introduction is acceptable at the moment.
 
-```python
-import onionizer
+Onionizer is a library that makes decorators easier to read, write and chain.
+Let's review the anatomy of a classical decorator:
 
-@onionizer.as_decorator
-def ensure_that_total_discount_is_acceptable(original_price, context):
-    # you can do yummy stuff here (before the wrapped function is called)
-    result = yield onionizer.UNCHANGED
-    # and here (after the wrapped function is called)
-    if original_price/result < 0.5:
-        raise ValueError("Total discount is too high")
-    return result
-
-@ensure_that_total_discount_is_acceptable
-def discount_function(original_price: int, context: dict) -> int:
-    ...
-```
-Yummy!
-
-The equivalent behavior without onionizer would be:
 ```python
 import functools
 def ensure_that_total_discount_is_acceptable(func):
-    @functools.wraps(func)
-    def wrapper(original_price, context):
-        result = func(original_price, context)
-        if result < original_price/2:
-            raise ValueError("Total discount is too high")
+    @functools.wraps(func)  # to preserve the signature and the docstring
+    def wrapper(*args, **kwargs): # ouch, let's define a new function
+        # A] write some stuff here
+        result = func(*args, **kwargs)
+        # B] write some stuff there
         return result
-    return wrapper
-
-@ensure_that_total_discount_is_acceptable
-def discount_function(original_price, context):
-    ...
+    return wrapper  # and return the function
 ```
-Less Yummy!
 
-The onionizer example is a bit more concise (and more flat) as there is no need to define and return a wrapper function (while keeping in mind to use `functools.wraps` to preserve the docstring and the signature of the wrapped function).
+Now compare it to a pytest fixture:
+```python
+import pytest
+@pytest.fixture
+def a_pytest_fixture():
+    # A] write some stuff here
+    yield 'something'
+    # B] write some stuff there
+```
+Less visual noise, isn't it? 
+This pattern is also [the preferred way to write context managers](https://docs.python.org/3/library/contextlib.html#contextlib.contextmanager).
 
-Yielding `onionizer.UNCHANGED` ensure the reader that the arguments are not modified by the middleware.
-Of course, you can yield other values if you want to mutate the arguments (more on that later).
+Of course, a pytest fixture is not a valid decorator, but with onionizer, one tweak is enough to make it one:
 
-If there is an incompatibility of signatures, the middleware will raise an error at wrapping time, whereas the decorator syntax will fail at runtime one day you did not expect.
+```python
+import onionizer
+@onionizer.as_decorator
+def my_decorator(*args, **kwargs):
+    # A] write some stuff here
+    result = yield  # we obtain the result of the wrapped function
+    # B] write some stuff there
+    return result
+```
+
+Then you can use it as usual:
+```python
+@my_decorator
+def my_function(*args, **kwargs):
+    return 'something'
+```
+
+Onionizer decorator-like are called middlewares.
+
+Features include:
+- possibility to mutate the arguments given to the wrapped function
+- ensure the middleware signature is compatible with the wrapped function
+- middlewares composition (accepting a list of onionizer middlewares and context managers)
 
 ## Motivation
 
 Onionizer is inspired by the onion model of middlewares in web frameworks such as Django, Flask and FastAPI.
 
-If you are into web developpement, you certainly found this pattern very convenient as you plug middlewares to your application to add features such as authentication, logging, etc.
+If you are into web developement, you certainly found this pattern very convenient as you plug middlewares to your application to add features such as authentication, logging, etc.
 
 **Why not generalize this pattern to any function ? That's what Onionizer does.**
 
@@ -83,9 +92,9 @@ Hopefully, it could nudge communities share code more easily when they are using
 ```bash
 pip install onionizer
 ```
-Onionizer has no sub-dependencies
+No extra dependencies required.
 
-## Usage
+## Middlewares composition
 
 We saw the usage of onionizer.as_decorator in the introductive example.
 Another way to use onionizer is to wrap a function with a list of middlewares using `onionizer.wrap_around` :
@@ -122,22 +131,25 @@ def func(x, y):
     return x + y
 ```
 
-## Features
+#### Support for context managers
 
-- support for normal function if you only want to preprocess arguments or postprocess results
-- support for context managers out of the box. Use this to handle resources or exceptions (try/except around the yield statement wont work for the middlewares)
-- simplified preprocessing of arguments using `PositionalArgs` and `KeywordArgs` to match your preferred style or onionizer.UNCHANGED (see below)
+context managers are de facto supported by onionizer.
 
+```python
+def func(x, y):
+    with exception_catcher():
+        return x/y
 
-## More on decorators vs middlewares : Flexibilty is good, until it's not
+@contextlib.contextmanager
+def exception_catcher():
+    try:
+        yield
+    except Exception as e:
+        raise RuntimeError("Exception caught") from e
 
-Chances are, if asked to add behavior before and after a function, you would use decorators. 
-And that's fine! Decorators are awesome and super flexible. But in the programming world, flexibility can also be a weakness. 
-
-Onionizer middlewares are more constrained to ensure composability : a middleware that do not share the exact same signature as the wrapped function will raise an error at wrapping time.
-Using the yield statement to separate the setup from the teardown is now a classic pattern in python development. 
-You might already be familiar with it if you are using context managers using contextlib.contextmanager or if you are testing your code with pytest fixtures.
-It's flat, explicit and easy to read, it's pythonic then. So let's eat more of these yummy-yummy yield statements!
+wrapped_func = onionizer.wrap_around(func, [exception_catcher()])
+wrapped_func(x=1, y=0) # raises RuntimeError("Exception caught")
+```
 
 ## Advanced usage
 
@@ -168,25 +180,6 @@ def wont_do_anything(x: int, y: int):
     return result
 ```
 
-### Support for context managers
-
-context managers are de facto supported by onionizer.
-
-```python
-def func(x, y):
-    with exception_catcher():
-        return x/y
-
-@contextlib.contextmanager
-def exception_catcher():
-    try:
-        yield
-    except Exception as e:
-        raise RuntimeError("Exception caught") from e
-
-wrapped_func = onionizer.wrap_around(func, [exception_catcher()])
-wrapped_func(x=1, y=0) # raises RuntimeError("Exception caught")
-```
 
 ### Support for simple functions
 
