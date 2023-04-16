@@ -8,13 +8,10 @@ T = TypeVar("T")  # pragma: no mutate
 
 OnionGenerator = Generator[Any, T, T]  # pragma: no mutate
 
-UNCHANGED = 123  # pragma: no mutate
-
 __all__ = [
     "wrap_around",
     "decorate",
     "OnionGenerator",
-    "UNCHANGED",
     "PositionalArgs",
     "MixedArgs",
     "KeywordArgs",
@@ -182,8 +179,8 @@ class MixedArgs(ArgsMode):
         return func(*self.args, **self.kwargs)
 
 
-def _refine(arguments, previous_arguments, accept_none=False):
-    if arguments is UNCHANGED or (accept_none and arguments is None):
+def _refine(arguments, previous_arguments):
+    if arguments is None:
         return previous_arguments
     if isinstance(arguments, ArgsMode):
         return arguments
@@ -208,7 +205,7 @@ def preprocessor(func):
 def postprocessor(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs) -> OnionGenerator:
-        output = yield UNCHANGED
+        output = yield
         return func(output)
 
     wrapper.ignore_signature_check = True

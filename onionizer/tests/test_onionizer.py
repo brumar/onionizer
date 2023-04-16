@@ -30,11 +30,11 @@ def test_mutate_arguments(func_that_adds):
 
 def test_mutate_output(func_that_adds):
     def middleware1(x: int, y: int) -> onionizer.OnionGenerator[int]:
-        result = yield onionizer.UNCHANGED
+        result = yield
         return result + 1
 
     def middleware2(x: int, y: int) -> onionizer.OnionGenerator[int]:
-        result = yield onionizer.UNCHANGED
+        result = yield
         return result * 2
 
     wrapped_func = onionizer.wrap_around(func_that_adds, [middleware1, middleware2])
@@ -194,7 +194,7 @@ def test_as_decorator():
 
 def test_uncompatible_signature(func_that_adds):
     def middleware1(*args):
-        result = yield onionizer.UNCHANGED
+        result = yield
         return result
 
     with pytest.raises(ValueError):
@@ -203,7 +203,7 @@ def test_uncompatible_signature(func_that_adds):
 
 def test_uncompatible_signature_but_disable_sigcheck(func_that_adds):
     def middleware1(*args):
-        result = yield onionizer.UNCHANGED
+        result = yield
         return result
 
     onionizer.wrap_around(func_that_adds, middlewares=[middleware1], sigcheck=False)
@@ -227,8 +227,8 @@ def test_unyielding_middleware(func_that_adds):
 
 def test_tooyielding_middleware(func_that_adds):
     def middleware1(*args):
-        yield onionizer.UNCHANGED
-        yield onionizer.UNCHANGED
+        yield
+        yield
 
     f2 = onionizer.wrap_around(
         func_that_adds, middlewares=[middleware1], sigcheck=False
@@ -264,7 +264,7 @@ def test_incorrect_func():
 
 def test_incorrect_midlist(func_that_adds):
     def middleware1(*args):
-        result = yield onionizer.UNCHANGED
+        result = yield
         return result
 
     with pytest.raises(TypeError) as e:
