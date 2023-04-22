@@ -3,6 +3,7 @@ import contextlib
 import pytest as pytest
 
 import onionizer
+from onionizer.onionizer import MixedArgs
 
 
 @pytest.fixture
@@ -14,12 +15,12 @@ def func_that_adds():
 
 
 def test_mutate_arguments(func_that_adds):
-    def middleware1(x: int, y: int) -> onionizer.OnionGenerator[int]:
-        result = yield (x + 1, y + 1), {}
+    def middleware1(x: int, y: int) -> onionizer.Out[int]:
+        result = yield MixedArgs((x + 1, y + 1), {})
         return result
 
-    def middleware2(x: int, y: int) -> onionizer.OnionGenerator[int]:
-        result = yield (x, y + 1), {}
+    def middleware2(x: int, y: int) -> onionizer.Out[int]:
+        result = yield MixedArgs((x, y + 1), {})
         return result
 
     wrapped_func = onionizer.wrap_around(func_that_adds, [middleware1, middleware2])
@@ -29,11 +30,11 @@ def test_mutate_arguments(func_that_adds):
 
 
 def test_mutate_output(func_that_adds):
-    def middleware1(x: int, y: int) -> onionizer.OnionGenerator[int]:
+    def middleware1(x: int, y: int) -> onionizer.Out[int]:
         result = yield
         return result + 1
 
-    def middleware2(x: int, y: int) -> onionizer.OnionGenerator[int]:
+    def middleware2(x: int, y: int) -> onionizer.Out[int]:
         result = yield
         return result * 2
 
@@ -48,11 +49,11 @@ def test_mutate_output(func_that_adds):
 
 def test_pos_only(func_that_adds):
     def middleware1(x: int, y: int):
-        result = yield onionizer.PositionalArgs(x + 1, y)
+        result = yield x + 1, y
         return result
 
     def middleware2(x: int, y: int):
-        result = yield onionizer.PositionalArgs(x, y + 1)
+        result = yield x, y + 1
         return result
 
     wrapped_func = onionizer.wrap_around(func_that_adds, [middleware1, middleware2])
@@ -62,11 +63,11 @@ def test_pos_only(func_that_adds):
 
 def test_kw_only(func_that_adds):
     def middleware1(x: int, y: int):
-        result = yield onionizer.KeywordArgs({"x": x + 1, "y": y})
+        result = yield {"x": x + 1, "y": y}
         return result
 
     def middleware2(x: int, y: int):
-        result = yield onionizer.KeywordArgs({"x": x, "y": y + 1})
+        result = yield {"x": x, "y": y + 1}
         return result
 
     wrapped_func = onionizer.wrap_around(func_that_adds, [middleware1, middleware2])
@@ -77,7 +78,7 @@ def test_kw_only(func_that_adds):
 def test_preprocessor(func_that_adds):
     @onionizer.preprocessor
     def midd1(x: int, y: int):
-        return onionizer.PositionalArgs(x + 1, y + 1)
+        return x + 1, y + 1
 
     assert midd1.__name__ == "midd1"
 
@@ -136,13 +137,24 @@ def test_support_for_context_managers():
     assert another_wrapped_func(x=1, y=1) == 2
 
 
+def test_support_for_callable_instance(func_that_adds):
+
+    class Middleware1:
+        def __call__(self, x, y):
+            result = yield
+            return result
+
+    wrapped_func = onionizer.wrap_around(func_that_adds, [Middleware1()])
+    assert wrapped_func(x=1, y=1) == 2
+
+
 def test_decorator():
     def middleware1(x, y):
-        result = yield onionizer.KeywordArgs({"x": x + 1, "y": y})
+        result = yield {"x": x + 1, "y": y}
         return result
 
     def middleware2(x, y):
-        result = yield onionizer.KeywordArgs({"x": x, "y": y + 1})
+        result = yield {"x": x, "y": y + 1}
         return result
 
     @onionizer.decorate([middleware1, middleware2])
@@ -175,12 +187,12 @@ def test_incorrect_decorator():
 def test_as_decorator():
     @onionizer.as_decorator
     def middleware1(x, y):
-        result = yield onionizer.KeywordArgs({"x": x + 1, "y": y})
+        result = yield {"x": x + 1, "y": y}
         return result
 
     @onionizer.as_decorator
     def middleware2(x, y):
-        result = yield onionizer.KeywordArgs({"x": x, "y": y + 1})
+        result = yield {"x": x, "y": y + 1}
         return result
 
     @middleware1
@@ -192,46 +204,13 @@ def test_as_decorator():
     assert result == 2
 
 
-def test_uncompatible_signature(func_that_adds):
-    def middleware1(*args):
-        result = yield
-        return result
-
-    with pytest.raises(ValueError):
-        onionizer.wrap_around(func_that_adds, middlewares=[middleware1])
-
-
-def test_uncompatible_signature_but_disable_sigcheck(func_that_adds):
-    def middleware1(*args):
-        result = yield
-        return result
-
-    onionizer.wrap_around(func_that_adds, middlewares=[middleware1], sigcheck=False)
-    assert True
-
-
-def test_unyielding_middleware(func_that_adds):
-    def middleware1(*args):
-        return "hello"
-
-    f2 = onionizer.wrap_around(
-        func_that_adds, middlewares=[middleware1], sigcheck=False
-    )
-    with pytest.raises(TypeError) as e:
-        f2(1, 2)
-    assert (
-        str(e.value) == "Middleware middleware1 is not a coroutine. "
-        "Did you forget to use a yield statement?"
-    )
-
-
 def test_tooyielding_middleware(func_that_adds):
     def middleware1(*args):
         yield
         yield
 
     f2 = onionizer.wrap_around(
-        func_that_adds, middlewares=[middleware1], sigcheck=False
+        func_that_adds, middlewares=[middleware1]
     )
     with pytest.raises(RuntimeError) as e:
         f2(1, 2)
@@ -246,12 +225,11 @@ def test_incorrects_managers(func_that_adds):
         def __enter__(self):
             return self
 
-    f = onionizer.wrap_around(func_that_adds, middlewares=[MyManager()], sigcheck=False)
+    f = onionizer.wrap_around(func_that_adds, middlewares=[MyManager()])
     with pytest.raises(TypeError):
         f(1, 2)
     f2 = onionizer.wrap_around(
-        func_that_adds, middlewares=[MyManager()], sigcheck=False
-    )
+        func_that_adds, middlewares=[MyManager()])
     with pytest.raises(TypeError):
         f2(1, 2)
 
@@ -280,6 +258,39 @@ def test_incorrect_yields(func_that_adds):
     with pytest.raises(TypeError) as e:
         onionizer.wrap_around(func_that_adds, middlewares=[middleware1])(1, 2)
     assert (
-        str(e.value) == "arguments must be a tuple of length 2, "
-        "maybe use onionizer.PositionalArgs or onionizer.MixedArgs instead"
+        str(e.value) == "unrecognized yielded values. Pass a tuple, a dict or an instance of MixedArgs instead"
     )
+
+def test_support_for_bypass(func_that_adds):
+    def mixed_middleware1(x: int, y: int):
+        if x == 123:
+            return -1
+        else:
+            result = yield
+            return result
+
+    def normal_middleware1(x: int, y: int):
+        result = yield
+        return result + 1
+
+    wrapped_func = onionizer.wrap_around(func_that_adds, [normal_middleware1, mixed_middleware1])
+    result = wrapped_func(x=123, y=0)
+    assert result == 0
+
+
+def test_support_for_hard_bypass(func_that_adds):
+    def mixed_middleware1(x: int, y: int):
+        if x == 123:
+            return onionizer.HARD_BYPASS(-1)
+        else:
+            result = yield
+            return result
+
+    def normal_middleware1(x: int, y: int):
+        result = yield
+        return result + 1
+
+    wrapped_func = onionizer.wrap_around(func_that_adds, [normal_middleware1, mixed_middleware1])
+    result = wrapped_func(x=123, y=0)
+    assert result == -1
+

@@ -14,38 +14,32 @@
 - [Introduction](#Introduction)
 - [Motivation](#Motivation)
 - [Installation](#Installation)
-- [Usage](#Usage)
-- [Features](#Features)
-- [More on decorators vs middlewares: Flexibilty is good, until it's not](#More-on-decorators-vs-middlewares--Flexibilty-is-good-until-its-not)
-- [Advanced Usage](#Advanced-Usage)
+- [Middlewares Composition](#Usage)
+- [Support For Context Managers](#Support For Context Managers)
+- [Advanced Usage](#Advanced Usage)
+- [Onionizer vs raw decorators](#Onionizer vs raw decorators)
+- [Gotchas](#Gotchas)
+- [License](#License)
 
 
 ## Introduction
 
-WARNING : this readme is a mess, I am working on it. Only the Introduction is acceptable at the moment.
-
-todo : 
-- remove signature check (and remove part of the doc that is related to it)
-- yield None is enough to understand that arguments are not changed (no need for onionizer.Unchanged)
-- Maybe there is no need for the KeywordArgs (a mapping is easy to recognize), only the PositionalArgs is needed to distinguish between positional and the mixture of positional + keyword arguments.
-... or maybe just having Params(args=(), kwargs={})
-
-Onionizer is a library that makes decorators easier to read, write and chain.
-Let's review the anatomy of a classical decorator:
+Onionizer is a small and focused library that makes decorators easier to read, write and chain.
+To understand its benefits, let's make a short detour and review the anatomy of a classical decorator:
 
 ```python
 import functools
-def ensure_that_total_discount_is_acceptable(func):
+def my_decorator(func):  # yes, a function that takes a function and returns a function
     @functools.wraps(func)  # to preserve the signature and the docstring
     def wrapper(*args, **kwargs): # ouch, let's define a new function
         # A] write some stuff here
         result = func(*args, **kwargs)
         # B] write some stuff there
         return result
-    return wrapper  # and return the function
+    return wrapper  # and return the function (don't forget this line)
 ```
 
-Now compare it to a pytest fixture:
+Now compare it to the anatomy of a pytest fixture:
 ```python
 import pytest
 @pytest.fixture
@@ -54,10 +48,11 @@ def a_pytest_fixture():
     yield 'something'
     # B] write some stuff there
 ```
-Less visual noise, isn't it? 
+Less visual noise, isn't it? The usage of `yield` is a nice trick to make the code more readable.
 This pattern is also [the preferred way to write context managers](https://docs.python.org/3/library/contextlib.html#contextlib.contextmanager).
+If you believe that flat is better than nested, you might like this yield trickery.
 
-Of course, a pytest fixture is not a valid decorator, but with onionizer, one tweak is enough to make it one:
+With onionizer, you can write your decorators in a similar way:
 
 ```python
 import onionizer
@@ -76,24 +71,24 @@ def my_function(*args, **kwargs):
     return 'something'
 ```
 
-Onionizer decorator-like are called middlewares.
+Onionizer decorator-like are called middlewares and sometimes referred to as onion layers.
 
 Features include:
-- possibility to mutate the arguments given to the wrapped function
-- ensure the middleware signature is compatible with the wrapped function
 - middlewares composition (accepting a list of onionizer middlewares and context managers)
+- possibility to mutate the arguments given to the wrapped function in a readable way
+- support for context managers and callable objects
 
 ## Motivation
 
 Onionizer is inspired by the onion model of middlewares in web frameworks such as Django, Flask and FastAPI.
 
-If you are into web developement, you certainly found this pattern very convenient as you plug middlewares to your application to add features such as authentication, logging, etc.
+If you did a bit of web developement, you certainly found this pattern very convenient as you plug middlewares to your application to add features such as authentication, logging, etc.
 
 **Why not generalize this pattern to any function ? That's what Onionizer does.**
 
 Hopefully, it could nudge communities share code more easily when they are using extensively the same specific API. Yes, I am looking at you `openai.ChatCompletion.create`.
 
-# Installation
+## Installation
 
 ```bash
 pip install onionizer
@@ -102,7 +97,7 @@ No extra dependencies required.
 
 ## Middlewares composition
 
-We saw the usage of onionizer.as_decorator in the introductive example.
+`onionizer.as_decorator` was introduced in the introduction.
 Another way to use onionizer is to wrap a function with a list of middlewares using `onionizer.wrap_around` :
 
 ```python
@@ -137,7 +132,7 @@ def func(x, y):
     return x + y
 ```
 
-#### Support for context managers
+## Support For Context Managers
 
 context managers are de facto supported by onionizer.
 
@@ -153,17 +148,18 @@ def exception_catcher():
     except Exception as e:
         raise RuntimeError("Exception caught") from e
 
-wrapped_func = onionizer.wrap_around(func, [exception_catcher()])
+wrapped_func = onionizer.wrap_around(func, [exception_catcher()])  # notice the parenthesis, onionizer needs an instance of the context manager
 wrapped_func(x=1, y=0) # raises RuntimeError("Exception caught")
 ```
 
-## Advanced usage
+Do use context manager if you need to do some cleanup after the wrapped function has been called or if you want to catch exceptions.
+Indeed, the `try/except` around the yield statement will not work for onionizer middlewares.
 
-### PositionalArgs and KeywordArgs
+## Advanced Usage
 
-The default way of using the yield statement is to pass a tuple of positional arguments and a dict of keyword arguments.
-But you can also pass `onionizer.PositionalArgs` and `onionizer.KeywordArgs` to simplify the preprocessing of arguments.
-Onionizer provides two classes to simplify the preprocessing of arguments : `PositionalArgs`, `KeywordArgs`.
+### Easy way to pass mutated arguments to the wrapped function
+
+The default way of using the yield statement is to pass either a tuple of positional arguments or a dict of keyword arguments.
 
 ```python
 import onionizer
@@ -171,65 +167,144 @@ def func(x, y):
     return x + y
 
 def middleware1(x: int, y: int):
-    result = yield onionizer.PositionalArgs(x + 1, y) # pass any number of positional arguments
+    result = yield {'x': x, 'y': y + 1} # keyword arguments only
     return result
 
 def middleware2(x: int, y: int):
-    result = yield onionizer.KeywordArgs({'x': x, 'y': y + 1}) # pass a dict with any number of keyword arguments
+    result = yield (x + 1, y) # positional arguments only
     return result
-wrapped_func = onionizer.wrap_around(func, [middleware1, middleware2])
+
+def middleware3(x: int, y: int):
+    result = yield  # no mutation
+    return result + 1
+
+wrapped_func = onionizer.wrap_around(func, [middleware1, middleware2, middleware3])
+print(wrapped_func(x=0, y=0)) # 3
 ```
 
+### MixedArgs
 
-
-
-
-### Support for simple functions
-
-You can use simple functions if you only want to preprocess arguments or postprocess results.
+In case you really need to pass both positional and keyword arguments, you can use `onionizer.MixedArgs` :
 
 ```python
-def test_preprocessor(func_that_adds):
-    @onionizer.preprocessor
-    def midd1(x: int, y: int):
-        return onionizer.PositionalArgs(x + 1, y + 1)
-
-    wrapped_func = onionizer.wrap_around(func_that_adds, [midd1])
-    result = wrapped_func(x=0, y=0)
-    assert result == 2
-
-
-def test_postprocessor(func_that_adds):
-    @onionizer.postprocessor
-    def midd1(val: int):
-        return val**2
-
-    wrapped_func = onionizer.wrap_around(func_that_adds, [midd1])
-    result = wrapped_func(x=1, y=1)
-    assert result == 4
+import onionizer
+def middleware1(x: int, y: int):
+    result = yield onionizer.MixedArgs(args=(x+1, ), kwargs={'y': y+1}) # pass a tuple of positional arguments and a dict of keyword arguments
+    return result
 ```
 
-### Remove signature checks
+### Early return to skip the next onion layers and the wrapped function
 
-By default, onionizer will check that the signature of the middlewares matches the signature of the wrapped function. This is to ensure that the middlewares are composable. If you want to disable this check, you can use `onionizer.wrap_around_no_check` instead of `onionizer.wrap_around`.
+Let's say you need a caching or validation middleware, you can return a value to skip the wrapped function.
 
 ```python
-def test_uncompatible_signature_but_disable_sigcheck(func_that_adds):
-    def middleware1(*args):
-        result = yield onionizer.UNCHANGED
+import onionizer
+def func(x, y):
+    return x + y
+
+def middleware1(x: int, y: int):
+    if x == 0:
+        return 0
+    else:
+        result = yield
         return result
 
-    onionizer.wrap_around(func_that_adds, middlewares=[middleware1], sigcheck=False)
-    assert True
+wrapped_func = onionizer.wrap_around(func, [middleware1])
+print(wrapped_func(x=0, y=0)) # 0
 ```
+
+On a early return, the next onion layers are skipped and the wrapped function wont be called.
+However, all the previous onion layers will be called on the way back.
+```python
+import onionizer
+def func(x, y):
+    print("FUNC CALLED")
+    return x + y
+
+def middleware1(x: int, y: int):
+    if x == 0:
+        return 0
+    else:
+        result = yield
+        return result
+    
+def polite_middleware(x: int, y: int):
+    print("Hello")
+    result = yield
+    print("Goodbye")
+    return result
+    
+wrapped_func = onionizer.wrap_around(func, [polite_middleware, middleware1])
+print(wrapped_func(x=0, y=0)) 
+# Hello
+# 0
+# Goodbye
+```
+
+By using the HARD_BYPASS container, it's possible to skip all remaining onion layers and return a value without calling the wrapped function.
+This means not playing nicely with the other middlewares that are already contacted and therefore is discouraged and should be used as a last resort only.
+
+```python
+import onionizer
+def func(x, y):
+    print("FUNC CALLED")
+    return x + y
+
+def middleware1(x: int, y: int):
+    if x == 0:
+        return onionizer.HARD_BYPASS(0)
+    else:
+        result = yield
+        return result
+
+def polite_middleware(x: int, y: int):
+    print("Hello")
+    result = yield
+    print("Goodbye")
+    return result
+
+wrapped_func = onionizer.wrap_around(func, [polite_middleware, middleware1])
+print(wrapped_func(x=0, y=0))
+# Hello
+# 0
+```
+
+### Typing
+
+onionizer let you type nicely your middlewares so that it's made apparent what arguments they expect and what they return.
+The return value might be harder to type as your middleware is in fact a generator. We provide a `onionizer.Out` type to help you with that.
+
+```python
+
+import onionizer
+def func(x, y):
+    return x + y
+
+def middleware1(x: int, y: int) -> onionizer.Out[int]:
+    result = yield {'x': x, 'y': y + 1} # keyword arguments only
+    return result
+```
+
+## Onionizer vs raw decorators
+
+Let's discuss the pros and cons of using onionizer vs raw decorators.
+pros : 
+- easier to read and write 
+- features that eases the creation of your onion model
+
+cons :
+- extra library to depend on (or extra code if you copy and paste the code from onionizer.py in your utils.py, which is fine if you ask me)
+- some time required to get used to the API (but not much, it's really simple)
+
+I believe middlewares are a great pattern to build software by composition but also to share code between projects that revolves around the same API.
+Generally, decorators are more thought as a way to handle cross-cutting concerns (logging, caching, etc) and not as a way to share code between projects.
+On the other hand, the decorator pattern as in the GOF book is more about composition than cross-cutting concerns.
+
+## Gotchas
+
+- as stated earlier, `Try: yield except:` won't work in a middleware. Use a context manager instead.
+- only sync functions are supported at the moment, no methods, no classes, no generators, no coroutines, no async functions.
 
 ## License
 
 `onionizer` is distributed under the terms of the [MIT](https://spdx.org/licenses/MIT.html) license.
-
-## Gotchas
-
-- `Try: yield except:` won't work in a middleware. Use a context manager instead.
-- only sync functions are supported at the moment, no methods, no classes, no generators, no coroutines, no async functions.
-- middlewares must have the same signature as the wrapped function. Use sigcheck=False to disable this check. 
-Authorize the use of `*args` and `**kwargs` in middlewares is under consideration
