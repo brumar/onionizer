@@ -108,7 +108,7 @@ def wrap_around(
     """
     _check_validity(func, middlewares)
 
-    @functools.wraps(func)
+    @functools.wraps(func)  # pragma: no mutate
     def wrapped_func(*args, **kwargs):
         arguments = MixedArgs(args, kwargs)
         coroutines = []
@@ -132,7 +132,7 @@ def wrap_around(
                         return raw_arguments.value
                     if has_ended:
                         output = raw_arguments
-                        a_middleware_exited_with_result = True
+                        a_middleware_exited_with_result = True  # pragma: no mutate
                         break
                 except AttributeError:
                     raise TypeError(
@@ -142,7 +142,7 @@ def wrap_around(
                 arguments = _refine(raw_arguments, arguments)
                 coroutines.append(coroutine)
             # just reached the core of the onion
-            if not a_middleware_exited_with_result:
+            if a_middleware_exited_with_result is False:
                 output = arguments.call_function(func)
             # now we go back to the surface
             output = _leave_the_onion(coroutines, output)
@@ -235,5 +235,5 @@ def postprocessor(func):
         output = yield
         return func(output)
 
-    wrapper.ignore_signature_check = True
+    # wrapper.ignore_signature_check = True
     return wrapper

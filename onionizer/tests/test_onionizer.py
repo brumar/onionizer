@@ -261,36 +261,36 @@ def test_incorrect_yields(func_that_adds):
         str(e.value) == "unrecognized yielded values. Pass a tuple, a dict or an instance of MixedArgs instead"
     )
 
-def test_support_for_bypass(func_that_adds):
+
+@pytest.mark.parametrize('hardbypass', [True, False])
+def test_early_returns(func_that_adds, hardbypass):
     def mixed_middleware1(x: int, y: int):
         if x == 123:
-            return -1
+            if hardbypass:
+                return onionizer.HARD_BYPASS(-1)
+            else:
+                return -1
         else:
             result = yield
             return result
 
-    def normal_middleware1(x: int, y: int):
-        result = yield
-        return result + 1
+    class MiddWare:
+        def __init__(self):
+            self.called_in = False
+            self.called_out = False
 
-    wrapped_func = onionizer.wrap_around(func_that_adds, [normal_middleware1, mixed_middleware1])
-    result = wrapped_func(x=123, y=0)
-    assert result == 0
+        def __call__(self, *args, **kwargs):
+            self.called_in = True
+            r = yield
+            self.called_out = True
+            return r
 
-
-def test_support_for_hard_bypass(func_that_adds):
-    def mixed_middleware1(x: int, y: int):
-        if x == 123:
-            return onionizer.HARD_BYPASS(-1)
-        else:
-            result = yield
-            return result
-
-    def normal_middleware1(x: int, y: int):
-        result = yield
-        return result + 1
-
-    wrapped_func = onionizer.wrap_around(func_that_adds, [normal_middleware1, mixed_middleware1])
+    first_mid = MiddWare()
+    last_mid = MiddWare()
+    wrapped_func = onionizer.wrap_around(func_that_adds, [first_mid, mixed_middleware1, last_mid])
     result = wrapped_func(x=123, y=0)
     assert result == -1
-
+    assert first_mid.called_in is True
+    assert first_mid.called_out is not hardbypass
+    assert last_mid.called_in is False
+    assert last_mid.called_out is False
