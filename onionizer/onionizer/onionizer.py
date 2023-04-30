@@ -51,17 +51,17 @@ def as_decorator(middleware):
     return decorate([middleware])
 
 
-def decorate(middlewares):
-    if not isinstance(middlewares, Iterable):
-        if callable(middlewares):
-            middlewares = [middlewares]
+def decorate(layers):
+    if not isinstance(layers, Iterable):
+        if callable(layers):
+            layers = [layers]
         else:
             raise TypeError(
-                "middlewares must be a list of coroutines or a single coroutine"
+                "layers must be a list of coroutines or a single coroutine"
             )
 
     def decorator(func):
-        return wrap(func, middlewares)
+        return wrap(func, layers)
 
     return decorator
 
@@ -76,12 +76,12 @@ def _capture_message(coroutine, value_to_send: Any) -> Any:
 
 
 def wrap(
-    func: Callable[..., Any], middlewares: list
+    func: Callable[..., Any], layers: typing.Union[Sequence, Callable[..., Any]]
 ) -> Callable[..., Any]:
     """
-    It takes a function and a list of middlewares,
-    and returns a function that calls the middlewares in order, then the
-    function, then the middlewares in reverse order
+    It takes a function and a list of middleware,
+    and returns a function that calls the middleware in order, then the
+    function, then the middleware list in reverse order
 
     def func(x, y):
         return x + y
@@ -102,11 +102,11 @@ def wrap(
 
     :param func: the function to be wrapped
     :type func: Callable[..., Any]
-    :param middlewares: a list of functions that will be called in order
-    :type middlewares: list
-    :return: A function that wraps the original function with the middlewares.
+    :param layers: a list of functions that will be called in order
+    :type layers: list
+    :return: A function that wraps the original function with the middleware list
     """
-    _check_validity(func, middlewares)
+    _check_validity(func, layers)
 
     @functools.wraps(func)  # pragma: no mutate
     def wrapped_func(*args, **kwargs):
@@ -116,7 +116,7 @@ def wrap(
         with ExitStack() as stack:
             # programmatic support for context manager, possibly nested !
             # https://docs.python.org/3/library/contextlib.html#contextlib.ExitStack
-            for middleware in middlewares:
+            for middleware in layers:
                 if hasattr(middleware, "__enter__") and hasattr(middleware, "__exit__"):
                     stack.enter_context(middleware)
                     continue
@@ -151,11 +151,11 @@ def wrap(
     return wrapped_func
 
 
-def _check_validity(func, middlewares):
+def _check_validity(func, layers):
     if not callable(func):
         raise TypeError("func must be callable")
-    if not isinstance(middlewares, Iterable):
-        raise TypeError("middlewares must be a list of coroutines")
+    if not isinstance(layers, Iterable):
+        raise TypeError("layers must be a list of coroutines")
     # if sigcheck:
     #     _inspect_signatures(func, middlewares)
 

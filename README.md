@@ -73,18 +73,18 @@ def my_function(*args, **kwargs):
     return 'something'
 ```
 
-Onionizer decorator-like are called middlewares and sometimes referred to as onion layers.
+Onionizer decorator-like are called middleware and sometimes referred to as onion layers.
 
 Features include:
-- middlewares composition (accepting a list of onionizer middlewares and context managers)
+- middleware composition (accepting a list of onionizer middleware and context managers)
 - possibility to mutate the arguments given to the wrapped function in a readable way
 - support for context managers and callable objects
 
 ## Motivation
 
-Onionizer is inspired by the onion model of middlewares in web frameworks such as Django, Flask and FastAPI.
+Onionizer is inspired by the onion model of middleware in web frameworks such as Django, Flask and FastAPI.
 
-If you did a bit of web developement, you certainly found this pattern very convenient as you plug middlewares to your application to add features such as authentication, logging, etc.
+If you did a bit of web developement, you certainly found this pattern very convenient as you plug middleware to your application to add features such as authentication, logging, etc.
 
 **Why not generalize this pattern to any function ? That's what Onionizer does.**
 
@@ -100,7 +100,7 @@ No extra dependencies required.
 ## Middlewares composition
 
 `onionizer.as_decorator` was introduced in the introduction.
-Another way to use onionizer is to wrap a function with a list of middlewares using `onionizer.wrap` :
+Another way to use onionizer is to wrap a function with a list of middleware using `onionizer.wrap` :
 
 ```python
 import onionizer
@@ -158,7 +158,7 @@ wrapped_func(x=1, y=0) # raises RuntimeError("Exception caught")
 
 Do use context manager if you need to do some cleanup after the wrapped function has been called or if you want to catch exceptions.
 
-Indeed, having a `try-except` block around the yield statement will not work for onionizer middlewares.
+Indeed, having a `try-except` block around the yield statement will not work for onionizer middleware.
 
 ## Advanced Usage
 
@@ -219,7 +219,7 @@ print(wrapped_func(x=0, y=0)) # 0
 ```
 
 On an early return, the next onion layers are skipped and the wrapped function won't be called.
-However, to play nicely with the middlewares already in play, all the previous onion layers will be called on the way back.
+However, to play nicely with the middleware already in play, all the previous onion layers will be called on the way back.
 ```python
 import onionizer
 def func(x, y):
@@ -248,7 +248,7 @@ print(wrapped_func(x=0, y=0))
 ```
 
 By using the `HARD_BYPASS` container, it's possible to skip all remaining onion layers and return a value without calling the wrapped function.
-This means not playing nicely with the other middlewares that are already contacted.
+This means not playing nicely with the other middleware that are already contacted.
 This is **discouraged** and should be used as a last resort only.
 
 ```python
@@ -278,7 +278,7 @@ print(wrapped_func(x=0, y=0))
 
 ### Typing
 
-onionizer let you type nicely your middlewares so that it's made apparent what arguments they expect and what they return.
+onionizer let you type nicely your middleware so that it's made apparent what arguments they expect and what they return.
 The return value might be harder to type as your middleware is in fact a generator. 
 We provide a `onionizer.Out` type to help you with that and let type checkers work their magic.
 
@@ -332,20 +332,20 @@ For truly cross-cutting concerns: use raw decorators.
 
 Let's discuss the pros and cons of using onionizer vs raw decorators.
 
-pros for onionizer middlewares: 
+pros for onionizer middleware: 
 - easier to read and write 
 - features that eases the creation of your onion model
 
-cons for onionizer middlewares:
+cons for onionizer middleware:
 - extra library to depend on (or extra code if you copy and paste the code from onionizer.py in your utils.py, which is fine if you ask me)
 - some time required to get used to the API (but not much, it's really simple)
 
-I believe middlewares are a great pattern to build software by composition but also to share code between projects that revolves around the same API.
+I believe middleware are a great pattern to build software by composition but also to share code between projects that revolves around the same API.
 Generally, decorators are more thought as a way to handle cross-cutting concerns (logging, caching, etc.) and not as a way to share code between projects.
 Middlewares, on the other hand, are a great way to share code between projects that revolves around the same API (cf this [2022 pycon talk](https://www.youtube.com/watch?v=_t7GxTbKocc) 
-where the author explain and demonstrates how the WSGI spec which defines the signature of python web applications allows to share code between frameworks when using middlewares.
+where the author explain and demonstrates how the WSGI spec which defines the signature of python web applications allows to share code between frameworks when using middleware.
 
-When the very same API is used by many projects, I think it's a good idea to provide a framework to help code authors (yourself included) to build their own middlewares without having to write raw decorators.
+When the very same API is used by many projects, I think it's a good idea to provide a framework to help code authors (yourself included) to build their own middleware without having to write raw decorators.
 Onionizer lets you bootstrap this framework.
 
 ## Gotchas
