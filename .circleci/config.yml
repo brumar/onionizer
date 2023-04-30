@@ -23,7 +23,7 @@ jobs:
             equal: [ main, << pipeline.git.branch >> ]
           steps:
             - run: pyenv install 3.7 3.8 3.9 3.10
-            - run: pyenv global 3.7 3.8 3.9 3.10
+            - run: pyenv global 3.11
       - run: hatch run test:cov
       - run: hatch run test:mutmut
       - run: hatch build
