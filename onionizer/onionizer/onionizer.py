@@ -1,20 +1,19 @@
 import functools
 import inspect
+import typing
 from abc import ABC
 from contextlib import ExitStack
-from typing import Callable, Any, Iterable, Sequence, TypeVar, Generator
+from typing import Callable, Any, Iterable, Sequence, TypeVar, Generator, Mapping
 
 T = TypeVar("T")  # pragma: no mutate
 
 OnionGenerator = Generator[Any, T, T]  # pragma: no mutate
-
-UNCHANGED = 123  # pragma: no mutate
+Out = OnionGenerator
 
 __all__ = [
-    "wrap_around",
+    "wrap",
     "decorate",
-    "OnionGenerator",
-    "UNCHANGED",
+    "Out",
     "PositionalArgs",
     "MixedArgs",
     "KeywordArgs",
@@ -23,17 +22,22 @@ __all__ = [
     "as_decorator",
 ]
 
+class HARD_BYPASS:
+    """
+    This is a special value that can be returned by a middleware to totally bypass the onion.
+    If a middleware returns this value, no other middleware will be called.
+    """
+    def __init__(self, value):
+        self.value = value
+
 
 def _capture_last_message(coroutine, value_to_send: Any) -> Any:
-    try:
-        coroutine.send(value_to_send)
-    except StopIteration as e:
-        # expected if the generator is exhausted
-        return e.value
-    else:
+    val, has_ended = _capture_message(coroutine, value_to_send)
+    if not has_ended:
         raise RuntimeError(
             "Generator did not exhaust. Your function should yield exactly once."
         )
+    return val
 
 
 def _leave_the_onion(coroutines: Sequence, output: Any) -> Any:
@@ -57,13 +61,22 @@ def decorate(middlewares):
             )
 
     def decorator(func):
-        return wrap_around(func, middlewares)
+        return wrap(func, middlewares)
 
     return decorator
 
 
-def wrap_around(
-    func: Callable[..., Any], middlewares: list, sigcheck: bool = True
+def _capture_message(coroutine, value_to_send: Any) -> Any:
+    try:
+        val = coroutine.send(value_to_send)
+        return val, False
+    except StopIteration as e:
+        # expected if the generator is exhausted
+        return e.value, True
+
+
+def wrap(
+    func: Callable[..., Any], middlewares: list
 ) -> Callable[..., Any]:
     """
     It takes a function and a list of middlewares,
@@ -82,7 +95,7 @@ def wrap_around(
         return result
 
 
-    wrapped_func = dip.wrap_around(func, [middleware1, middleware2])
+    wrapped_func = dip.wrap(func, [middleware1, middleware2])
     result = wrapped_func(0, 0)
 
     assert result == 2
@@ -93,12 +106,13 @@ def wrap_around(
     :type middlewares: list
     :return: A function that wraps the original function with the middlewares.
     """
-    _check_validity(func, middlewares, sigcheck)
+    _check_validity(func, middlewares)
 
-    @functools.wraps(func)
+    @functools.wraps(func)  # pragma: no mutate
     def wrapped_func(*args, **kwargs):
         arguments = MixedArgs(args, kwargs)
         coroutines = []
+        a_middleware_exited_with_result = False
         with ExitStack() as stack:
             # programmatic support for context manager, possibly nested !
             # https://docs.python.org/3/library/contextlib.html#contextlib.ExitStack
@@ -107,17 +121,29 @@ def wrap_around(
                     stack.enter_context(middleware)
                     continue
                 coroutine = arguments.call_function(middleware)
-                coroutines.append(coroutine)
+                if not isinstance(coroutine, typing.Generator):
+                    raise TypeError(
+                        f"Middleware {middleware} is not a coroutine. "
+                        f"Did you forget to use a yield statement?"
+                    )
                 try:
-                    raw_arguments = coroutine.send(None)
+                    raw_arguments, has_ended = _capture_message(coroutine, None)
+                    if isinstance(raw_arguments, HARD_BYPASS):
+                        return raw_arguments.value
+                    if has_ended:
+                        output = raw_arguments
+                        a_middleware_exited_with_result = True  # pragma: no mutate
+                        break
                 except AttributeError:
                     raise TypeError(
                         f"Middleware {middleware.__name__} is not a coroutine. "
                         f"Did you forget to use a yield statement?"
                     )
                 arguments = _refine(raw_arguments, arguments)
+                coroutines.append(coroutine)
             # just reached the core of the onion
-            output = arguments.call_function(func)
+            if a_middleware_exited_with_result is False:
+                output = arguments.call_function(func)
             # now we go back to the surface
             output = _leave_the_onion(coroutines, output)
             return output
@@ -125,31 +151,31 @@ def wrap_around(
     return wrapped_func
 
 
-def _check_validity(func, middlewares, sigcheck):
+def _check_validity(func, middlewares):
     if not callable(func):
         raise TypeError("func must be callable")
     if not isinstance(middlewares, Iterable):
         raise TypeError("middlewares must be a list of coroutines")
-    if sigcheck:
-        _inspect_signatures(func, middlewares)
+    # if sigcheck:
+    #     _inspect_signatures(func, middlewares)
 
 
-def _inspect_signatures(func, middlewares):
-    func_signature = inspect.signature(func)
-    func_signature_params = func_signature.parameters
-    for middleware in middlewares:
-        if not (
-            hasattr(middleware, "ignore_signature_check")
-            and middleware.ignore_signature_check is True
-        ) and not all(hasattr(middleware, attr) for attr in ("__enter__", "__exit__")):
-            middleware_signature = inspect.signature(middleware)
-            middleware_signature_params = middleware_signature.parameters
-            if middleware_signature_params != func_signature_params:
-                raise ValueError(
-                    f"Expected arguments of the target function mismatch "
-                    f"middleware expected arguments. {func.__name__}{func_signature} "
-                    f"differs with {middleware.__name__}{middleware_signature}"
-                )
+# def _inspect_signatures(func, middlewares):
+#     func_signature = inspect.signature(func)
+#     func_signature_params = func_signature.parameters
+#     for middleware in middlewares:
+#         if not (
+#             hasattr(middleware, "ignore_signature_check")
+#             and middleware.ignore_signature_check is True
+#         ) and not all(hasattr(middleware, attr) for attr in ("__enter__", "__exit__")):
+#             middleware_signature = inspect.signature(middleware)
+#             middleware_signature_params = middleware_signature.parameters
+#             if middleware_signature_params != func_signature_params:
+#                 raise ValueError(
+#                     f"Expected arguments of the target function mismatch "
+#                     f"middleware expected arguments. {func.__name__}{func_signature} "
+#                     f"differs with {middleware.__name__}{middleware_signature}"
+#                 )
 
 
 class ArgsMode(ABC):
@@ -183,17 +209,15 @@ class MixedArgs(ArgsMode):
 
 
 def _refine(arguments, previous_arguments):
-    if arguments is UNCHANGED:
+    if arguments is None:
         return previous_arguments
     if isinstance(arguments, ArgsMode):
         return arguments
-    if not isinstance(arguments, Sequence) or len(arguments) != 2:
-        raise TypeError(
-            "arguments must be a tuple of length 2, "
-            "maybe use onionizer.PositionalArgs or onionizer.MixedArgs instead"
-        )
-    args, kwargs = arguments
-    return MixedArgs(args, kwargs)
+    if isinstance(arguments, Sequence):
+        return PositionalArgs(*arguments)
+    if isinstance(arguments, Mapping):
+        return KeywordArgs(arguments)
+    raise TypeError('unrecognized yielded values. Pass a tuple, a dict or an instance of MixedArgs instead')
 
 
 def preprocessor(func):
@@ -208,8 +232,8 @@ def preprocessor(func):
 def postprocessor(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs) -> OnionGenerator:
-        output = yield UNCHANGED
+        output = yield
         return func(output)
 
-    wrapper.ignore_signature_check = True
+    # wrapper.ignore_signature_check = True
     return wrapper
