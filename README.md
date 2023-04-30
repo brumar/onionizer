@@ -11,15 +11,16 @@
 
 **Table of Contents**
 
-- [Introduction](#Introduction)
-- [Motivation](#Motivation)
-- [Installation](#Installation)
-- [Middlewares Composition](#Usage)
-- [Support For Context Managers](#Support For Context Managers)
-- [Advanced Usage](#Advanced Usage)
-- [Onionizer vs raw decorators](#Onionizer vs raw decorators)
-- [Gotchas](#Gotchas)
-- [License](#License)
+- [Introduction](#introduction)
+- [Motivation](#motivation)
+- [Installation](#installation)
+- [Middlewares Composition](#usage)
+- [Support For Context Managers](#support-for-context-managers)
+- [Advanced Usage](#advanced-usage)
+- [Onionizer vs raw decorators](#onionizer-vs-raw-decorators)
+- [Gotchas](#gotchas)
+- [Roadmap and Ideas](#roadmapideas)
+- [License](#license)
 
 
 ## Introduction
@@ -134,7 +135,7 @@ def func(x, y):
 
 ## Support For Context Managers
 
-context managers are de facto supported by onionizer.
+Context managers are supported by onionizer.
 
 ```python
 import onionizer 
@@ -155,7 +156,8 @@ wrapped_func(x=1, y=0) # raises RuntimeError("Exception caught")
 ```
 
 Do use context manager if you need to do some cleanup after the wrapped function has been called or if you want to catch exceptions.
-Indeed, the `try/except` around the yield statement will not work for onionizer middlewares.
+
+Indeed, having a `try-except` block around the yield statement will not work for onionizer middlewares.
 
 ## Advanced Usage
 
@@ -195,7 +197,7 @@ def middleware1(x: int, y: int):
     return result
 ```
 
-### Early return to skip the next onion layers and the wrapped function
+### Early return works
 
 Let's say you need a caching or validation middleware, you can return a value to skip the wrapped function or any remaining onion layers.
 
@@ -206,7 +208,7 @@ def func(x, y):
 
 def middleware1(x: int, y: int):
     if x == 0:
-        return 0
+        return 0 # early return
     else:
         result = yield
         return result
@@ -246,7 +248,7 @@ print(wrapped_func(x=0, y=0))
 
 By using the `HARD_BYPASS` container, it's possible to skip all remaining onion layers and return a value without calling the wrapped function.
 This means not playing nicely with the other middlewares that are already contacted.
-This is discouraged and should be used as a last resort only.
+This is **discouraged** and should be used as a last resort only.
 
 ```python
 import onionizer
@@ -293,7 +295,7 @@ def middleware1(x: int, y: int) -> onionizer.Out[int]:
 The proximity of the middleware signature with the wrapped function signature makes it easier to read and write
 and value the fact that onionizer is a composition tool that cares about the domain model of the wrapped function (cf next section)
 
-## Middlewares with state
+### Middlewares with state
 
 Middlewares can be instances of classes that implement the `__call__` method, which is a practical way to store some state between calls.
 
@@ -319,7 +321,13 @@ print(middware.call_count)  # 2
 
 ## Onionizer vs raw decorators
 
-### pros and cons
+### tl;dr
+
+When the very same API is used by many projects: use onionizer.
+
+For truly cross-cutting concerns: use raw decorators.
+
+### Extended discussion
 
 Let's discuss the pros and cons of using onionizer vs raw decorators.
 
@@ -336,12 +344,8 @@ Generally, decorators are more thought as a way to handle cross-cutting concerns
 Middlewares, on the other hand, are a great way to share code between projects that revolves around the same API (cf this [2022 pycon talk](https://www.youtube.com/watch?v=_t7GxTbKocc) 
 where the author explain and demonstrates how the WSGI spec which defines the signature of python web applications allows to share code between frameworks when using middlewares.
 
-### conclusion
-
 When the very same API is used by many projects, I think it's a good idea to provide a framework to help code authors (yourself included) to build their own middlewares without having to write raw decorators.
 Onionizer lets you bootstrap this framework.
-
-For cross-cutting concerns, I think it's better to use raw decorators as they will be usable everywhere and not only in the context of your project that uses onionizer.
 
 ## Gotchas
 
