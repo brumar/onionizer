@@ -98,7 +98,7 @@ No extra dependencies required.
 ## Middlewares composition
 
 `onionizer.as_decorator` was introduced in the introduction.
-Another way to use onionizer is to wrap a function with a list of middlewares using `onionizer.wrap_around` :
+Another way to use onionizer is to wrap a function with a list of middlewares using `onionizer.wrap` :
 
 ```python
 import onionizer
@@ -106,14 +106,14 @@ def func(x, y):
     return x + y
 
 def middleware1(x, y):
-    result = yield (x+1, y+1), {}  # yield the new arguments and keyword arguments ; obtain the result
+    result = yield x+1, y+1  # yield the new arguments and keyword arguments ; obtain the result
     return result # Do nothing with the result
 
 def middleware2(x, y):
-    result = yield (x, y), {}  # arguments are not preprocessed by this middleware
+    result = yield x, y  # arguments are not preprocessed by this middleware
     return result*2 # double the result
 
-wrapped_func = onionizer.wrap_around(func, [middleware1, middleware2])
+wrapped_func = onionizer.wrap(func, [middleware1, middleware2])
 result = wrapped_func(0, 0)
 print(result) # 2
 ```
@@ -137,6 +137,8 @@ def func(x, y):
 context managers are de facto supported by onionizer.
 
 ```python
+import onionizer 
+
 def func(x, y):
     with exception_catcher():
         return x/y
@@ -148,7 +150,7 @@ def exception_catcher():
     except Exception as e:
         raise RuntimeError("Exception caught") from e
 
-wrapped_func = onionizer.wrap_around(func, [exception_catcher()])  # notice the parenthesis, onionizer needs an instance of the context manager
+wrapped_func = onionizer.wrap(func, [exception_catcher()])  # notice the parenthesis, onionizer needs an instance of the context manager
 wrapped_func(x=1, y=0) # raises RuntimeError("Exception caught")
 ```
 
@@ -171,14 +173,14 @@ def middleware1(x: int, y: int):
     return result
 
 def middleware2(x: int, y: int):
-    result = yield (x + 1, y) # positional arguments only
+    result = yield x + 1, y # positional arguments only
     return result
 
 def middleware3(x: int, y: int):
     result = yield  # no mutation
     return result + 1
 
-wrapped_func = onionizer.wrap_around(func, [middleware1, middleware2, middleware3])
+wrapped_func = onionizer.wrap(func, [middleware1, middleware2, middleware3])
 print(wrapped_func(x=0, y=0)) # 3
 ```
 
@@ -195,7 +197,7 @@ def middleware1(x: int, y: int):
 
 ### Early return to skip the next onion layers and the wrapped function
 
-Let's say you need a caching or validation middleware, you can return a value to skip the wrapped function.
+Let's say you need a caching or validation middleware, you can return a value to skip the wrapped function or any remaining onion layers.
 
 ```python
 import onionizer
@@ -209,12 +211,12 @@ def middleware1(x: int, y: int):
         result = yield
         return result
 
-wrapped_func = onionizer.wrap_around(func, [middleware1])
+wrapped_func = onionizer.wrap(func, [middleware1])
 print(wrapped_func(x=0, y=0)) # 0
 ```
 
-On a early return, the next onion layers are skipped and the wrapped function wont be called.
-However, all the previous onion layers will be called on the way back.
+On an early return, the next onion layers are skipped and the wrapped function won't be called.
+However, to play nicely with the middlewares already in play, all the previous onion layers will be called on the way back.
 ```python
 import onionizer
 def func(x, y):
@@ -223,6 +225,7 @@ def func(x, y):
 
 def middleware1(x: int, y: int):
     if x == 0:
+        print("EARLY RETURN")
         return 0
     else:
         result = yield
@@ -234,15 +237,16 @@ def polite_middleware(x: int, y: int):
     print("Goodbye")
     return result
     
-wrapped_func = onionizer.wrap_around(func, [polite_middleware, middleware1])
+wrapped_func = onionizer.wrap(func, [polite_middleware, middleware1])  # polite_middleware will be called on the way back
 print(wrapped_func(x=0, y=0)) 
 # Hello
-# 0
+# EARLY RETURN
 # Goodbye
 ```
 
-By using the HARD_BYPASS container, it's possible to skip all remaining onion layers and return a value without calling the wrapped function.
-This means not playing nicely with the other middlewares that are already contacted and therefore is discouraged and should be used as a last resort only.
+By using the `HARD_BYPASS` container, it's possible to skip all remaining onion layers and return a value without calling the wrapped function.
+This means not playing nicely with the other middlewares that are already contacted.
+This is discouraged and should be used as a last resort only.
 
 ```python
 import onionizer
@@ -263,7 +267,7 @@ def polite_middleware(x: int, y: int):
     print("Goodbye")
     return result
 
-wrapped_func = onionizer.wrap_around(func, [polite_middleware, middleware1])
+wrapped_func = onionizer.wrap(func, [polite_middleware, middleware1])  # polite_middleware won't be called on the way back
 print(wrapped_func(x=0, y=0))
 # Hello
 # 0
@@ -272,12 +276,13 @@ print(wrapped_func(x=0, y=0))
 ### Typing
 
 onionizer let you type nicely your middlewares so that it's made apparent what arguments they expect and what they return.
-The return value might be harder to type as your middleware is in fact a generator. We provide a `onionizer.Out` type to help you with that.
+The return value might be harder to type as your middleware is in fact a generator. 
+We provide a `onionizer.Out` type to help you with that and let type checkers work their magic.
 
 ```python
 
 import onionizer
-def func(x, y):
+def func(x: int, y: int) -> int:
     return x + y
 
 def middleware1(x: int, y: int) -> onionizer.Out[int]:
@@ -285,25 +290,69 @@ def middleware1(x: int, y: int) -> onionizer.Out[int]:
     return result
 ```
 
+The proximity of the middleware signature with the wrapped function signature makes it easier to read and write
+and value the fact that onionizer is a composition tool that cares about the domain model of the wrapped function (cf next section)
+
+## Middlewares with state
+
+Middlewares can be instances of classes that implement the `__call__` method, which is a practical way to store some state between calls.
+
+```python
+import onionizer
+
+class MiddWare:
+    def __init__(self):
+        self.call_count = 0
+
+    def __call__(self, *args, **kwargs):
+        self.call_count += 1
+        r = yield
+        return r
+
+
+middware = MiddWare()
+wrapped_func = onionizer.wrap(lambda x: x, [middware])
+wrapped_func(None)
+wrapped_func(None)
+print(middware.call_count)  # 2
+ ```
+
 ## Onionizer vs raw decorators
 
+### pros and cons
+
 Let's discuss the pros and cons of using onionizer vs raw decorators.
-pros : 
+
+pros for onionizer middlewares: 
 - easier to read and write 
 - features that eases the creation of your onion model
 
-cons :
+cons for onionizer middlewares:
 - extra library to depend on (or extra code if you copy and paste the code from onionizer.py in your utils.py, which is fine if you ask me)
 - some time required to get used to the API (but not much, it's really simple)
 
 I believe middlewares are a great pattern to build software by composition but also to share code between projects that revolves around the same API.
-Generally, decorators are more thought as a way to handle cross-cutting concerns (logging, caching, etc) and not as a way to share code between projects.
-On the other hand, the decorator pattern as in the GOF book is more about composition than cross-cutting concerns.
+Generally, decorators are more thought as a way to handle cross-cutting concerns (logging, caching, etc.) and not as a way to share code between projects.
+Middlewares, on the other hand, are a great way to share code between projects that revolves around the same API (cf this [2022 pycon talk](https://www.youtube.com/watch?v=_t7GxTbKocc) 
+where the author explain and demonstrates how the WSGI spec which defines the signature of python web applications allows to share code between frameworks when using middlewares.
+
+### conclusion
+
+When the very same API is used by many projects, I think it's a good idea to provide a framework to help code authors (yourself included) to build their own middlewares without having to write raw decorators.
+Onionizer lets you bootstrap this framework.
+
+For cross-cutting concerns, I think it's better to use raw decorators as they will be usable everywhere and not only in the context of your project that uses onionizer.
 
 ## Gotchas
 
-- as stated earlier, `Try: yield except:` won't work in a middleware. Use a context manager instead.
-- only sync functions are supported at the moment, no methods, no classes, no generators, no coroutines, no async functions.
+- as stated earlier, sandwiching your `yield` statement with a `try-except` block won't work in a middleware. Use a context manager instead.
+- only sync functions can be wrapped by onionizer at the moment.
+
+## Roadmap/Ideas
+
+- [ ] extend the support for other types of functions: methods, generators async functions..
+- [ ] (?) provide ports for other Middleware frameworks (e.g `@onionizer.as_wsgi_middleware`)
+
 
 ## License
 

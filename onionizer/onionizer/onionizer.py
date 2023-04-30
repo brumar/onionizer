@@ -11,7 +11,7 @@ OnionGenerator = Generator[Any, T, T]  # pragma: no mutate
 Out = OnionGenerator
 
 __all__ = [
-    "wrap_around",
+    "wrap",
     "decorate",
     "Out",
     "PositionalArgs",
@@ -61,7 +61,7 @@ def decorate(middlewares):
             )
 
     def decorator(func):
-        return wrap_around(func, middlewares)
+        return wrap(func, middlewares)
 
     return decorator
 
@@ -75,7 +75,7 @@ def _capture_message(coroutine, value_to_send: Any) -> Any:
         return e.value, True
 
 
-def wrap_around(
+def wrap(
     func: Callable[..., Any], middlewares: list
 ) -> Callable[..., Any]:
     """
@@ -95,7 +95,7 @@ def wrap_around(
         return result
 
 
-    wrapped_func = dip.wrap_around(func, [middleware1, middleware2])
+    wrapped_func = dip.wrap(func, [middleware1, middleware2])
     result = wrapped_func(0, 0)
 
     assert result == 2

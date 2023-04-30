@@ -1,5 +1,5 @@
 from .onionizer import (
-    wrap_around,
+    wrap,
     decorate,
     Out,
     HARD_BYPASS,
