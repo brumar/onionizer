@@ -11,15 +11,16 @@
 
 **Table of Contents**
 
-- [Introduction](#Introduction)
-- [Motivation](#Motivation)
-- [Installation](#Installation)
-- [Middlewares Composition](#Usage)
-- [Support For Context Managers](#Support For Context Managers)
-- [Advanced Usage](#Advanced%20Usage)
-- [Onionizer vs raw decorators](#Onionizer vs raw decorators)
-- [Gotchas](#Gotchas)
-- [License](#License)
+- [Introduction](#introduction)
+- [Motivation](#motivation)
+- [Installation](#installation)
+- [Middlewares Composition](#usage)
+- [Support For Context Managers](#support-for-context-managers)
+- [Advanced Usage](#advanced-usage)
+- [Onionizer vs raw decorators](#onionizer-vs-raw-decorators)
+- [Gotchas](#gotchas)
+- [Roadmap and Ideas](#roadmapideas)
+- [License](#license)
 
 
 ## Introduction
@@ -293,7 +294,7 @@ def middleware1(x: int, y: int) -> onionizer.Out[int]:
 The proximity of the middleware signature with the wrapped function signature makes it easier to read and write
 and value the fact that onionizer is a composition tool that cares about the domain model of the wrapped function (cf next section)
 
-## Middlewares with state
+### Middlewares with state
 
 Middlewares can be instances of classes that implement the `__call__` method, which is a practical way to store some state between calls.
 
