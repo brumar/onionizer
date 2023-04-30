@@ -26,6 +26,7 @@
 ## Introduction
 
 Onionizer is a small and focused library that makes decorators easier to read, write and chain.
+
 To understand its benefits, let's make a short detour and review the anatomy of a classical decorator:
 
 ```python
@@ -40,7 +41,7 @@ def my_decorator(func):  # yes, a function that takes a function and returns a f
     return wrapper  # and return the function (don't forget this line)
 ```
 
-Now compare it to the anatomy of a pytest fixture:
+Now compare it to the anatomy of a [pytest fixture](https://docs.pytest.org/en/7.3.x/explanation/fixtures.html#about-fixtures):
 ```python
 import pytest
 @pytest.fixture
