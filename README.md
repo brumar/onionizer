@@ -14,8 +14,8 @@
 - [Introduction](#introduction)
 - [Motivation](#motivation)
 - [Installation](#installation)
-- [Middlewares Composition](#usage)
-- [Support For Context Managers](#support-for-context-managers)
+- [Middleware Composition](#middleware-composition)
+- [How to mutate the arguments](#how-to-mutate-the-arguments)
 - [Advanced Usage](#advanced-usage)
 - [Onionizer vs raw decorators](#onionizer-vs-raw-decorators)
 - [Gotchas](#gotchas)
@@ -97,7 +97,7 @@ pip install onionizer
 ```
 No extra dependencies required.
 
-## Middlewares composition
+## Middleware composition
 
 `onionizer.as_decorator` was introduced in the introduction.
 Another way to use onionizer is to wrap a function with a list of middleware using `onionizer.wrap` :
@@ -108,7 +108,7 @@ def func(x, y):
     return x + y
 
 def middleware1(x, y):
-    result = yield x+1, y+1  # yield the new arguments and keyword arguments ; obtain the result
+    result = yield x+1, y+1  # yield new positional arguments! See next section for more
     return result # Do nothing with the result
 
 def middleware2(x, y):
@@ -134,7 +134,47 @@ def func(x, y):
     return x + y
 ```
 
-## Support For Context Managers
+## How to mutate the arguments
+
+### yield a tuple or a dict
+
+The default way of using the yield statement is to pass either a tuple of positional arguments or a dict of keyword arguments.
+
+```python
+import onionizer
+def func(x, y):
+    return x + y
+
+def middleware1(x: int, y: int):
+    result = yield {'x': x, 'y': y + 1} # keyword arguments only
+    return result
+
+def middleware2(x: int, y: int):
+    result = yield x + 1, y # positional arguments only
+    return result
+
+def middleware3(x: int, y: int):
+    result = yield  # no mutation
+    return result + 1
+
+wrapped_func = onionizer.wrap(func, [middleware1, middleware2, middleware3])
+print(wrapped_func(x=0, y=0)) # 3
+```
+
+### yield MixedArgs
+
+In case you really need to pass both positional and keyword arguments, you can use `onionizer.MixedArgs` :
+
+```python
+import onionizer
+def middleware1(x: int, y: int):
+    result = yield onionizer.MixedArgs(args=(x+1, ), kwargs={'y': y+1}) # pass a tuple of positional arguments and a dict of keyword arguments
+    return result
+```
+
+## Advanced Usage
+
+### Support For Context Managers
 
 Context managers are supported by onionizer.
 
@@ -160,43 +200,6 @@ Do use context manager if you need to do some cleanup after the wrapped function
 
 Indeed, having a `try-except` block around the yield statement will not work for onionizer middleware.
 
-## Advanced Usage
-
-### Easy way to pass mutated arguments to the wrapped function
-
-The default way of using the yield statement is to pass either a tuple of positional arguments or a dict of keyword arguments.
-
-```python
-import onionizer
-def func(x, y):
-    return x + y
-
-def middleware1(x: int, y: int):
-    result = yield {'x': x, 'y': y + 1} # keyword arguments only
-    return result
-
-def middleware2(x: int, y: int):
-    result = yield x + 1, y # positional arguments only
-    return result
-
-def middleware3(x: int, y: int):
-    result = yield  # no mutation
-    return result + 1
-
-wrapped_func = onionizer.wrap(func, [middleware1, middleware2, middleware3])
-print(wrapped_func(x=0, y=0)) # 3
-```
-
-### MixedArgs
-
-In case you really need to pass both positional and keyword arguments, you can use `onionizer.MixedArgs` :
-
-```python
-import onionizer
-def middleware1(x: int, y: int):
-    result = yield onionizer.MixedArgs(args=(x+1, ), kwargs={'y': y+1}) # pass a tuple of positional arguments and a dict of keyword arguments
-    return result
-```
 
 ### Early return works
 
@@ -296,9 +299,9 @@ def middleware1(x: int, y: int) -> onionizer.Out[int]:
 The proximity of the middleware signature with the wrapped function signature makes it easier to read and write
 and value the fact that onionizer is a composition tool that cares about the domain model of the wrapped function (cf next section)
 
-### Middlewares with state
+### Middleware with state
 
-Middlewares can be instances of classes that implement the `__call__` method, which is a practical way to store some state between calls.
+Middleware can be instances of classes that implement the `__call__` method, which is a practical way to store some state between calls.
 
 ```python
 import onionizer
@@ -342,7 +345,7 @@ cons for onionizer middleware:
 
 I believe middleware are a great pattern to build software by composition but also to share code between projects that revolves around the same API.
 Generally, decorators are more thought as a way to handle cross-cutting concerns (logging, caching, etc.) and not as a way to share code between projects.
-Middlewares, on the other hand, are a great way to share code between projects that revolves around the same API (cf this [2022 pycon talk](https://www.youtube.com/watch?v=_t7GxTbKocc) 
+Middleware, on the other hand, are a great way to share code between projects that revolves around the same API (cf this [2022 pycon talk](https://www.youtube.com/watch?v=_t7GxTbKocc) 
 where the author explain and demonstrates how the WSGI spec which defines the signature of python web applications allows to share code between frameworks when using middleware.
 
 When the very same API is used by many projects, I think it's a good idea to provide a framework to help code authors (yourself included) to build their own middleware without having to write raw decorators.
