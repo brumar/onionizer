@@ -1,4 +1,4 @@
 # SPDX-FileCopyrightText: 2023-present bruno <martin.bruno.mail@gmail.com>
 #
 # SPDX-License-Identifier: MIT
-__version__ = "0.4.2"
+__version__ = "0.5.0"

@@ -16,7 +16,7 @@
 - [Installation](#Installation)
 - [Middlewares Composition](#Usage)
 - [Support For Context Managers](#Support For Context Managers)
-- [Advanced Usage](#Advanced Usage)
+- [Advanced Usage](#Advanced%20Usage)
 - [Onionizer vs raw decorators](#Onionizer vs raw decorators)
 - [Gotchas](#Gotchas)
 - [License](#License)
