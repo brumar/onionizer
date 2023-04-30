@@ -180,7 +180,7 @@ def test_incorrect_decorator():
             return x + y
 
     assert (
-        str(e.value) == "middlewares must be a list of coroutines or a single coroutine"
+        str(e.value) == "layers must be a list of coroutines or a single coroutine"
     )
 
 
@@ -210,7 +210,7 @@ def test_tooyielding_middleware(func_that_adds):
         yield
 
     f2 = onionizer.wrap(
-        func_that_adds, middlewares=[middleware1]
+        func_that_adds, layers=[middleware1]
     )
     with pytest.raises(RuntimeError) as e:
         f2(1, 2)
@@ -225,11 +225,11 @@ def test_incorrects_managers(func_that_adds):
         def __enter__(self):
             return self
 
-    f = onionizer.wrap(func_that_adds, middlewares=[MyManager()])
+    f = onionizer.wrap(func_that_adds, layers=[MyManager()])
     with pytest.raises(TypeError):
         f(1, 2)
     f2 = onionizer.wrap(
-        func_that_adds, middlewares=[MyManager()])
+        func_that_adds, layers=[MyManager()])
     with pytest.raises(TypeError):
         f2(1, 2)
 
@@ -246,8 +246,8 @@ def test_incorrect_midlist(func_that_adds):
         return result
 
     with pytest.raises(TypeError) as e:
-        onionizer.wrap(func_that_adds, middlewares=middleware1)
-    assert str(e.value) == "middlewares must be a list of coroutines"
+        onionizer.wrap(func_that_adds, layers=middleware1)
+    assert str(e.value) == "layers must be a list of coroutines"
 
 
 def test_incorrect_yields(func_that_adds):
@@ -256,7 +256,7 @@ def test_incorrect_yields(func_that_adds):
         return 1
 
     with pytest.raises(TypeError) as e:
-        onionizer.wrap(func_that_adds, middlewares=[middleware1])(1, 2)
+        onionizer.wrap(func_that_adds, layers=[middleware1])(1, 2)
     assert (
         str(e.value) == "unrecognized yielded values. Pass a tuple, a dict or an instance of MixedArgs instead"
     )
