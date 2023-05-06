@@ -1,3 +1,4 @@
+import asyncio
 import contextlib
 
 import pytest as pytest
@@ -294,3 +295,43 @@ def test_early_returns(func_that_adds, hardbypass):
     assert first_mid.called_out is not hardbypass
     assert last_mid.called_in is False
     assert last_mid.called_out is False
+
+def test_error_for_async_middleware_on_syncfunc(func_that_adds):
+    async def middleware1(x: int, y: int):
+        await asyncio.sleep(0.1)
+        res = yield
+        yield res
+
+    wrapped_func = onionizer.asyncwrap(func_that_adds, [middleware1])
+    with pytest.raises(TypeError):
+        result = wrapped_func(x=1, y=2)
+
+
+@pytest.mark.asyncio
+async def test_sync_middleware_on_assyncfunc():
+
+    async def func(x:int):
+        await asyncio.sleep(0.1)
+        return x
+    def middleware1(x: int):
+        res = yield (x+1, )
+        return res
+
+    wrapped_func = onionizer.wrap(func, [middleware1])
+    result = await wrapped_func(0)
+    assert result == 1
+
+@pytest.mark.asyncio
+async def test_async_middleware_on_assyncfunc():
+
+    async def func(x:int):
+        await asyncio.sleep(0.1)
+        return x
+    async def middleware1(x: int):
+        await asyncio.sleep(0.1)
+        res = yield (x+1, )
+        yield res
+
+    wrapped_func = onionizer.wrap(func, [middleware1])
+    result = await wrapped_func(0)
+    assert result == 1
