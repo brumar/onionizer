@@ -414,8 +414,8 @@ Let's discuss the pros and cons of using onionizer vs raw decorators.
 
 pros for onionizer middleware: 
 - easier to read and write 
-- features that eases the creation of your onion model
-- free async functions support
+- features that eases the creation of your onion model.
+- free support for async functions
 
 cons for onionizer middleware:
 - extra library to depend on (or extra code if you copy and paste the code from onionizer.py in your utils.py, which is fine if you ask me)
@@ -433,6 +433,7 @@ Onionizer lets you bootstrap this framework.
 
 - as stated earlier, sandwiching your `yield` statement with a `try-except` block won't work in a middleware. Use a context manager instead.
 - only sync functions can be wrapped by onionizer at the moment.
+- async middlewares can't use return statements, they have to yield the result instead (or yield `onionizer.HARD_BYPASS(result)` or `onionizer.BYPASS(result)`.
 
 ## Roadmap/Ideas
 
