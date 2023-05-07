@@ -31,6 +31,13 @@ class HARD_BYPASS:
     def __init__(self, value):
         self.value = value
 
+class BYPASS:
+    """
+    This is a special value that can be returned by a middleware to bypass the wrapped function.
+    other middleware will be called.
+    """
+    def __init__(self, value):
+        self.value = value
 
 def _capture_last_message(coroutine, value_to_send: Any) -> Any:
     val, has_ended = _capture_message(coroutine, value_to_send)
@@ -149,10 +156,16 @@ def wrap(
                         raw_arguments, has_ended = _capture_message(coroutine, None)
                         if isinstance(raw_arguments, HARD_BYPASS):
                             return raw_arguments.value
+                        if isinstance(raw_arguments, BYPASS):
+                            has_ended = True
                         if has_ended:
-                            output = raw_arguments
+                            if isinstance(raw_arguments, BYPASS):
+                                output = raw_arguments.value
+                            else:
+                                output = raw_arguments
                             a_middleware_exited_with_result = True  # pragma: no mutate
                             break
+
                     except AttributeError:
                         raise TypeError(
                             f"Middleware {middleware.__name__} is not a coroutine. "
@@ -190,17 +203,22 @@ def wrap(
                         )
                     try:
                         raw_arguments, has_ended = await _capture_async_message(coroutine, None)
-                        if isinstance(raw_arguments, HARD_BYPASS):
-                            return raw_arguments.value
-                        if has_ended:
-                            output = raw_arguments
-                            a_middleware_exited_with_result = True  # pragma: no mutate
-                            break
-                    except AttributeError:
+                    except AttributeError as e:  # todo: fix me as I shadow the original exception
                         raise TypeError(
                             f"Middleware {middleware.__name__} is not a coroutine. "
                             f"Did you forget to use a yield statement?"
                         )
+                    if isinstance(raw_arguments, HARD_BYPASS):
+                        return raw_arguments.value
+                    if isinstance(raw_arguments, BYPASS):
+                        has_ended = True
+                    if has_ended:
+                        if isinstance(raw_arguments, BYPASS):
+                            output = raw_arguments.value
+                        else:
+                            output = raw_arguments
+                        a_middleware_exited_with_result = True  # pragma: no mutate
+                        break
                     arguments = _refine(raw_arguments, arguments)
                     coroutines.append(coroutine)
                 # just reached the core of the onion

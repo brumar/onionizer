@@ -76,9 +76,10 @@ def my_function(*args, **kwargs):
 Onionizer decorator-like are called middleware and sometimes referred to as onion layers.
 
 Features include:
-- middleware composition (accepting a list of onionizer middleware and context managers)
+- middleware composition (accepting a list of onionizer middleware)
 - possibility to mutate the arguments given to the wrapped function in a readable way
 - support for context managers and callable objects
+- onionizer middleware work seamlessly with sync and async functions (no need to write your logic twice anymore)
 
 ## Motivation
 
@@ -159,6 +160,78 @@ wrapped_func(x=1, y=0) # raises RuntimeError("Exception caught")
 Do use context manager if you need to do some cleanup after the wrapped function has been called or if you want to catch exceptions.
 
 Indeed, having a `try-except` block around the yield statement will not work for onionizer middleware.
+
+
+## Support For Async Functions
+
+If you want to write decorators that are compatible with both sync and async functions, you will end up doing something like that:
+
+```python
+import asyncio
+import functools
+
+def dec(fn):
+    if asyncio.iscoroutinefunction(fn):
+        @functools.wraps(fn)
+        async def wrapper(*args, **kwargs):
+            # do some stuff here
+            res = await fn(*args, **kwargs)
+            # do some stuff there
+        return wrapper
+    else:
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            # do some stuff here
+            return fn(*args, **kwargs)
+            # do some stuff there
+        return wrapper
+```
+it's not very readable, isn't it? One temptation would be to abide to DRY principle and write a function for `do some stuff here` and another one for `do some stuff there`.
+But that's forcing you to add unwanted abstractions to your code by splitting your behavior it into two functions.
+
+With onionizer, you don't have to think about it anymore. Just write your middleware as usual and onionizer will take care of the rest.
+
+```python
+import onionizer
+import asyncio
+
+async def func(x:int):
+    await asyncio.sleep(0.1)
+    return x
+
+def middleware1(x: int):
+    res = yield x+1, 
+    return res
+
+wrapped_func = onionizer.wrap(func, [middleware1])  
+result = await wrapped_func(0)  # as func is async, wrapped_func is async too
+print(result) # 1
+```
+
+** can my middleware be async too ? **
+
+Yes, it can. But this will work only if the wrapped function is async too.
+Also, there is a small caveat: you will need to yield the final result instead of returning it.
+This is a limitation of asynchronous generators (PEP 525).
+
+```python
+import asyncio
+import onionizer
+
+async def func(x:int):
+    await asyncio.sleep(0.1)
+    return x
+
+async def middleware1(x: int):
+    await asyncio.sleep(0.1)
+    res = yield x+1,
+    yield res
+
+wrapped_func = onionizer.wrap(func, [middleware1])
+result = await wrapped_func(0)
+print(result) # 1
+```
+
 
 ## Advanced Usage
 
@@ -276,6 +349,13 @@ print(wrapped_func(x=0, y=0))
 # 0
 ```
 
+### Early return with async functions
+
+Early return works with async functions too, but you will need to yield the result instead of returning it.
+This is a limitation of asynchronous generators (PEP 525).
+
+`yield onionizer.HARD_BYPASS(result)` will be understood by onionizer, as well as `yield onionizer.BYPASS(result)` to simulate a regular return.
+
 ### Typing
 
 onionizer let you type nicely your middleware so that it's made apparent what arguments they expect and what they return.
@@ -335,6 +415,7 @@ Let's discuss the pros and cons of using onionizer vs raw decorators.
 pros for onionizer middleware: 
 - easier to read and write 
 - features that eases the creation of your onion model
+- free async functions support
 
 cons for onionizer middleware:
 - extra library to depend on (or extra code if you copy and paste the code from onionizer.py in your utils.py, which is fine if you ask me)
@@ -357,6 +438,8 @@ Onionizer lets you bootstrap this framework.
 
 - [ ] extend the support for other types of functions: methods, generators async functions..
 - [ ] (?) provide ports for other Middleware frameworks (e.g `@onionizer.as_wsgi_middleware`)
+- [ ] (?) Provide a more consistent middleware experience with no use of return statement (`yield Return(val) ?` and `yield HardReturn(val) ?`)
+- [ ] do not capture errors from the middleware itself
 
 
 ## License
