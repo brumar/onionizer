@@ -11,16 +11,16 @@
 
 **Table of Contents**
 
-- [Introduction](#introduction)
-- [Motivation](#motivation)
-- [Installation](#installation)
-- [Middlewares Composition](#usage)
-- [Support For Context Managers](#support-for-context-managers)
-- [Advanced Usage](#advanced-usage)
-- [Onionizer vs raw decorators](#onionizer-vs-raw-decorators)
-- [Gotchas](#gotchas)
-- [Roadmap and Ideas](#roadmapideas)
-- [License](#license)
+- [Introduction](#user-content--introduction)
+- [Motivation](#user-content--motivation)
+- [Installation](#user-content--installation)
+- [Middlewares Composition](#user-content--usage)
+- [Support For Context Managers](#user-content--support-for-context-managers)
+- [Advanced Usage](#user-content--advanced-usage)
+- [Onionizer vs raw decorators](#user-content--onionizer-vs-raw-decorators)
+- [Gotchas](#user-content--gotchas)
+- [Roadmap and Ideas](#user-content--roadmapideas)
+- [License](#user-content--license)
 
 
 ## 👉 Introduction
