@@ -375,3 +375,15 @@ async def test_async_middleware_normal_bypass():
     wrapped_func = onionizer.wrap(func, [mid0, middleware1])
     result = await wrapped_func(0)
     assert result == -2
+
+def test_middleware_raises_error(func_that_adds):
+    def middleware1(x: int, y: int):
+        raise AttributeError("middleware1 error")
+        yield 2
+        return 1
+
+    with pytest.raises(AttributeError) as e:
+        onionizer.wrap(func_that_adds, layers=[middleware1])(1, 2)
+    assert (
+            str(e.value) == "middleware1 error"
+    )

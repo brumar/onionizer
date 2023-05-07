@@ -89,7 +89,17 @@ async def _capture_async_message(coroutine, value_to_send: Any) -> Any:
         except StopAsyncIteration as e:
             # expected if the generator is exhausted
             return e.value, True
+    else:
+        raise TypeError(
+            f"Middleware {coroutine} is not a coroutine. "
+            f"Did you forget to use a yield statement?"
+        )
 def _capture_message(coroutine, value_to_send: Any) -> Any:
+    if not hasattr(coroutine, "__next__"):
+        raise TypeError(
+            f"Middleware {coroutine} is not a coroutine. "
+            f"Did you forget to use a yield statement?"
+        )
     try:
         val = coroutine.send(value_to_send)
         return val, False
@@ -152,25 +162,18 @@ def wrap(
                             f"Middleware {middleware} is not a coroutine. "
                             f"Did you forget to use a yield statement?"
                         )
-                    try:
-                        raw_arguments, has_ended = _capture_message(coroutine, None)
-                        if isinstance(raw_arguments, HARD_BYPASS):
-                            return raw_arguments.value
+                    raw_arguments, has_ended = _capture_message(coroutine, None)
+                    if isinstance(raw_arguments, HARD_BYPASS):
+                        return raw_arguments.value
+                    if isinstance(raw_arguments, BYPASS):
+                        has_ended = True
+                    if has_ended:
                         if isinstance(raw_arguments, BYPASS):
-                            has_ended = True
-                        if has_ended:
-                            if isinstance(raw_arguments, BYPASS):
-                                output = raw_arguments.value
-                            else:
-                                output = raw_arguments
-                            a_middleware_exited_with_result = True  # pragma: no mutate
-                            break
-
-                    except AttributeError:
-                        raise TypeError(
-                            f"Middleware {middleware.__name__} is not a coroutine. "
-                            f"Did you forget to use a yield statement?"
-                        )
+                            output = raw_arguments.value
+                        else:
+                            output = raw_arguments
+                        a_middleware_exited_with_result = True  # pragma: no mutate
+                        break
                     arguments = _refine(raw_arguments, arguments)
                     coroutines.append(coroutine)
                 # just reached the core of the onion
@@ -201,13 +204,7 @@ def wrap(
                             f"Middleware {middleware} is not a coroutine. "
                             f"Did you forget to use a yield statement?"
                         )
-                    try:
-                        raw_arguments, has_ended = await _capture_async_message(coroutine, None)
-                    except AttributeError as e:  # todo: fix me as I shadow the original exception
-                        raise TypeError(
-                            f"Middleware {middleware.__name__} is not a coroutine. "
-                            f"Did you forget to use a yield statement?"
-                        )
+                    raw_arguments, has_ended = await _capture_async_message(coroutine, None)
                     if isinstance(raw_arguments, HARD_BYPASS):
                         return raw_arguments.value
                     if isinstance(raw_arguments, BYPASS):
