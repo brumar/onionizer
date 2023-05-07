@@ -164,7 +164,7 @@ Indeed, having a `try-except` block around the yield statement will not work for
 
 ## 🕰️ Support For Async Functions
 
-If you want to write decorators that are compatible with both sync and async functions, you will end up doing something like that:
+If you want to write decorators that are compatible with both sync and async functions, *without onionizer* you would end up doing something like that:
 
 ```python
 import asyncio
@@ -186,8 +186,12 @@ def dec(fn):
             # do some stuff there
         return wrapper
 ```
-it's not very readable, isn't it? One temptation would be to abide to DRY principle and write a function for `do some stuff here` and another one for `do some stuff there`.
-But that's forcing you to add unwanted abstractions to your code by splitting your behavior it into two functions.
+it's not very readable, isn't it? 
+
+It's also difficult to maintain.
+
+One temptation would be to abide to DRY principle and write a function for `do some stuff here` and another one for `do some stuff there`.
+But that's forcing you to add unwanted abstractions to fight against unwanted duplication.
 
 With onionizer, you don't have to think about it anymore. Just write your middleware as usual and onionizer will take care of the rest.
 
