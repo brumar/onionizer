@@ -4,6 +4,7 @@ import inspect
 import typing
 from abc import ABC
 from contextlib import ExitStack
+from dataclasses import dataclass
 from typing import Callable, Any, Iterable, Sequence, TypeVar, Generator, Mapping
 
 T = TypeVar("T")  # pragma: no mutate
@@ -40,12 +41,36 @@ class BYPASS:
         self.value = value
 
 def _capture_last_message(coroutine, value_to_send: Any) -> Any:
-    val, has_ended = _capture_message(coroutine, value_to_send)
-    if not has_ended:
+    middleware_output = _capture_message(coroutine, value_to_send)
+    if middleware_output.status != "stop":
         raise RuntimeError(
             "Generator did not exhaust. Your function should yield exactly once."
         )
-    return val
+    return middleware_output.value
+
+# dataclass representing middleware output
+@dataclass
+class MiddlewareOutput:
+    value: Any
+    coroutine_ended: bool
+
+    @property
+    def status(self):
+        if isinstance(self.value, HARD_BYPASS):
+            return 'hard_stop'
+        if isinstance(self.value, BYPASS) or self.coroutine_ended:
+            return 'stop'
+
+    @property
+    def output(self):
+        if isinstance(self.value, (HARD_BYPASS, BYPASS)):
+            return self.value.value
+        else:
+            return self.value
+
+def get_middleware_output(coroutine):
+    middleware_output = _capture_message(coroutine, None)
+    return middleware_output
 
 
 def _leave_the_onion(coroutines: Sequence, output: Any) -> Any:
@@ -76,25 +101,20 @@ def decorate(layers):
 
 async def _capture_async_message(coroutine, value_to_send: Any) -> Any:
     if hasattr(coroutine, "__next__"):
-        try:
-            val = coroutine.send(value_to_send)
-            return val, False
-        except StopIteration as e:
-            # expected if the generator is exhausted
-            return e.value, True
+        return _capture_message(coroutine, value_to_send)
     elif hasattr(coroutine, "__anext__"):
         try:
             val = await coroutine.asend(value_to_send)
-            return val, False
+            return MiddlewareOutput(val, coroutine_ended=False)
         except StopAsyncIteration as e:
             # expected if the generator is exhausted
-            return e.value, True
+            return MiddlewareOutput(e.value, coroutine_ended=True)
     else:
         raise TypeError(
             f"Middleware {coroutine} is not a coroutine. "
             f"Did you forget to use a yield statement?"
         )
-def _capture_message(coroutine, value_to_send: Any) -> Any:
+def _capture_message(coroutine, value_to_send: Any) -> MiddlewareOutput:
     if not hasattr(coroutine, "__next__"):
         raise TypeError(
             f"Middleware {coroutine} is not a coroutine. "
@@ -102,10 +122,17 @@ def _capture_message(coroutine, value_to_send: Any) -> Any:
         )
     try:
         val = coroutine.send(value_to_send)
-        return val, False
+        return MiddlewareOutput(val, coroutine_ended=False)
     except StopIteration as e:
         # expected if the generator is exhausted
-        return e.value, True
+        return MiddlewareOutput(e.value, coroutine_ended=True)
+
+
+async def async_get_middleware_output(coroutine):
+    output = _capture_async_message(coroutine, None)
+    if inspect.isawaitable(output):
+        output = await output
+    return output
 
 
 def wrap(
@@ -162,26 +189,24 @@ def wrap(
                             f"Middleware {middleware} is not a coroutine. "
                             f"Did you forget to use a yield statement?"
                         )
-                    raw_arguments, has_ended = _capture_message(coroutine, None)
-                    if isinstance(raw_arguments, HARD_BYPASS):
-                        return raw_arguments.value
-                    if isinstance(raw_arguments, BYPASS):
-                        has_ended = True
-                    if has_ended:
-                        if isinstance(raw_arguments, BYPASS):
-                            output = raw_arguments.value
-                        else:
-                            output = raw_arguments
-                        a_middleware_exited_with_result = True  # pragma: no mutate
+                    middleware_output = get_middleware_output(coroutine)
+                    if middleware_output.status == "hard_stop":
+                        return middleware_output.output
+                    if middleware_output.status == "stop":
+                        a_middleware_exited_with_result = True
                         break
-                    arguments = _refine(raw_arguments, arguments)
+                    arguments = _refine(middleware_output.output, arguments)
                     coroutines.append(coroutine)
                 # just reached the core of the onion
                 if a_middleware_exited_with_result is False:
                     output = arguments.call_function(func)
+                else:
+                    output = middleware_output.output
                 # now we go back to the surface
                 output = _leave_the_onion(coroutines, output)
                 return output
+
+
         return wrapped_func
 
     else:
@@ -204,28 +229,24 @@ def wrap(
                             f"Middleware {middleware} is not a coroutine. "
                             f"Did you forget to use a yield statement?"
                         )
-                    raw_arguments, has_ended = await _capture_async_message(coroutine, None)
-                    if isinstance(raw_arguments, HARD_BYPASS):
-                        return raw_arguments.value
-                    if isinstance(raw_arguments, BYPASS):
-                        has_ended = True
-                    if has_ended:
-                        if isinstance(raw_arguments, BYPASS):
-                            output = raw_arguments.value
-                        else:
-                            output = raw_arguments
-                        a_middleware_exited_with_result = True  # pragma: no mutate
+                    middleware_output = await async_get_middleware_output(coroutine)
+                    if middleware_output.status == "hard_stop":
+                        return middleware_output.output
+                    if middleware_output.status == "stop":
+                        a_middleware_exited_with_result = True
                         break
-                    arguments = _refine(raw_arguments, arguments)
+                    arguments = _refine(middleware_output.output, arguments)
                     coroutines.append(coroutine)
                 # just reached the core of the onion
                 if a_middleware_exited_with_result is False:
-                    output = arguments.call_function(func)
-                    output = await output
+                    output = await arguments.call_function(func)
+                else:
+                    output = middleware_output.output
                 # now we go back to the surface
                 for coroutine1 in reversed(coroutines):
                 # reversed to respect onion model
-                    output, has_ended = await _capture_async_message(coroutine1, output)
+                    middleware_output = await _capture_async_message(coroutine1, output)
+                    output = middleware_output.output
                 return output
         return wrapped_func
 

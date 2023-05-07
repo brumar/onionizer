@@ -325,29 +325,29 @@ async def test_sync_middleware_on_assyncfunc():
 
     async def func(x:int):
         await asyncio.sleep(0.1)
-        return x
+        return x + 1
     def middleware1(x: int):
         res = yield (x+1, )
         return res
 
     wrapped_func = onionizer.wrap(func, [middleware1])
-    result = await wrapped_func(0)
-    assert result == 1
+    result = await wrapped_func(3)
+    assert result == 5
 
 @pytest.mark.asyncio
 async def test_async_middleware_on_assyncfunc():
 
     async def func(x:int):
         await asyncio.sleep(0.1)
-        return x
+        return x + 1
     async def middleware1(x: int):
         await asyncio.sleep(0.1)
         res = yield x+1,
         yield res
 
     wrapped_func = onionizer.wrap(func, [middleware1])
-    result = await wrapped_func(0)
-    assert result == 1
+    result = await wrapped_func(3)
+    assert result == 5
 
 @pytest.mark.asyncio
 async def test_async_middleware_hard_bypass():
