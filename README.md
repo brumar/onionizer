@@ -214,7 +214,7 @@ result = await wrapped_func(0)  # as func is async, wrapped_func is async too
 print(result) # 1
 ```
 
-** can my middleware be async too ? **
+**can my middleware be async too ?**
 
 Yes, it can. But this will work only if the wrapped function is async too.
 Also, there is a small caveat: you will need to yield the final result instead of returning it.
@@ -263,6 +263,7 @@ def middleware3(x: int, y: int):
 
 wrapped_func = onionizer.wrap(func, [middleware1, middleware2, middleware3])
 print(wrapped_func(x=0, y=0)) # 3
+```
 
 ### 🌟 MixedArgs
 
@@ -433,7 +434,7 @@ cons for onionizer middleware:
 I believe middleware are a great pattern to build software by composition but also to share code between projects that revolves around the same API.
 Generally, decorators are more thought as a way to handle cross-cutting concerns (logging, caching, etc.) and not as a way to share code between projects.
 Middleware, on the other hand, are a great way to share code between projects that revolves around the same API (cf this [2022 pycon talk](https://www.youtube.com/watch?v=_t7GxTbKocc) 
-where the author explain and demonstrates how the WSGI spec which defines the signature of python web applications allows to share code between frameworks when using middleware.
+where the speaker explain and demonstrates how the WSGI spec which defines the signature of python web applications allows to share code between frameworks when using middleware.
 
 When the very same API is used by many projects, I think it's a good idea to provide a framework to help code authors (yourself included) to build their own middleware without having to write raw decorators.
 Onionizer lets you bootstrap this framework.
