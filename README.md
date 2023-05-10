@@ -16,6 +16,7 @@
 - [Installation](#user-content--installation)
 - [Middlewares Composition](#user-content--usage)
 - [Support For Context Managers](#user-content--support-for-context-managers)
+- [Pass mutated arguments](#user-content--pass-mutated-arguments)
 - [Advanced Usage](#user-content--advanced-usage)
 - [Onionizer vs raw decorators](#user-content--onionizer-vs-raw-decorators)
 - [Gotchas](#user-content--gotchas)
@@ -100,6 +101,7 @@ No extra dependencies required.
 
 ## 🔗 Middlewares composition
 
+
 `onionizer.as_decorator` was introduced in the introduction.
 Another way to use onionizer is to wrap a function with a list of middleware using `onionizer.wrap` :
 
@@ -109,7 +111,7 @@ def func(x, y):
     return x + y
 
 def middleware1(x, y):
-    result = yield x+1, y+1  # yield the new arguments and keyword arguments ; obtain the result
+    result = yield x+1, y+1  # yield new positional arguments! See next section for more
     return result # Do nothing with the result
 
 def middleware2(x, y):
@@ -236,10 +238,9 @@ result = await wrapped_func(0)
 print(result) # 1
 ```
 
+## 📨 Passing Mutated Arguments
 
-## 🔍 Advanced Usage
-
-### 📨 Easy way to pass mutated arguments to the wrapped function
+### yield a tuple or a dict
 
 The default way of using the yield statement is to pass either a tuple of positional arguments or a dict of keyword arguments.
 
@@ -262,9 +263,9 @@ def middleware3(x: int, y: int):
 
 wrapped_func = onionizer.wrap(func, [middleware1, middleware2, middleware3])
 print(wrapped_func(x=0, y=0)) # 3
-```
 
 ### 🌟 MixedArgs
+
 
 In case you really need to pass both positional and keyword arguments, you can use `onionizer.MixedArgs` :
 
@@ -275,9 +276,13 @@ def middleware1(x: int, y: int):
     return result
 ```
 
+
+## 🔍 Advanced Usage
+
 ### ↩️ Early return 
 
-Let's say you need a caching or validation middleware, you can return a value to skip the wrapped function or any remaining onion layers.
+
+Let's say you need a caching or a validation middleware, you can return a value to skip the wrapped function or any remaining onion layers.
 
 ```python
 import onionizer
@@ -380,9 +385,9 @@ def middleware1(x: int, y: int) -> onionizer.Out[int]:
 The proximity of the middleware signature with the wrapped function signature makes it easier to read and write
 and value the fact that onionizer is a composition tool that cares about the domain model of the wrapped function (cf next section)
 
-### Middlewares with state
+### Middleware with state
 
-Middlewares can be instances of classes that implement the `__call__` method, which is a practical way to store some state between calls.
+Middleware can be instances of classes that implement the `__call__` method, which is a practical way to store some state between calls.
 
 ```python
 import onionizer
@@ -427,7 +432,7 @@ cons for onionizer middleware:
 
 I believe middleware are a great pattern to build software by composition but also to share code between projects that revolves around the same API.
 Generally, decorators are more thought as a way to handle cross-cutting concerns (logging, caching, etc.) and not as a way to share code between projects.
-Middlewares, on the other hand, are a great way to share code between projects that revolves around the same API (cf this [2022 pycon talk](https://www.youtube.com/watch?v=_t7GxTbKocc) 
+Middleware, on the other hand, are a great way to share code between projects that revolves around the same API (cf this [2022 pycon talk](https://www.youtube.com/watch?v=_t7GxTbKocc) 
 where the author explain and demonstrates how the WSGI spec which defines the signature of python web applications allows to share code between frameworks when using middleware.
 
 When the very same API is used by many projects, I think it's a good idea to provide a framework to help code authors (yourself included) to build their own middleware without having to write raw decorators.
