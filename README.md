@@ -11,19 +11,20 @@
 
 **Table of Contents**
 
-- [Introduction](#introduction)
-- [Motivation](#motivation)
-- [Installation](#installation)
-- [Middleware Composition](#middleware-composition)
-- [How to mutate the arguments](#how-to-mutate-the-arguments)
-- [Advanced Usage](#advanced-usage)
-- [Onionizer vs raw decorators](#onionizer-vs-raw-decorators)
-- [Gotchas](#gotchas)
-- [Roadmap and Ideas](#roadmapideas)
-- [License](#license)
+- [Introduction](#user-content--introduction)
+- [Motivation](#user-content--motivation)
+- [Installation](#user-content--installation)
+- [Middlewares Composition](#user-content--usage)
+- [Support For Context Managers](#user-content--support-for-context-managers)
+- [Pass mutated arguments](#user-content--pass-mutated-arguments)
+- [Advanced Usage](#user-content--advanced-usage)
+- [Onionizer vs raw decorators](#user-content--onionizer-vs-raw-decorators)
+- [Gotchas](#user-content--gotchas)
+- [Roadmap and Ideas](#user-content--roadmapideas)
+- [License](#user-content--license)
 
 
-## Introduction
+## 👉 Introduction
 
 Onionizer is a small and focused library that makes decorators easier to read, write and chain.
 
@@ -76,11 +77,12 @@ def my_function(*args, **kwargs):
 Onionizer decorator-like are called middleware and sometimes referred to as onion layers.
 
 Features include:
-- middleware composition (accepting a list of onionizer middleware and context managers)
+- middleware composition (accepting a list of onionizer middleware)
 - possibility to mutate the arguments given to the wrapped function in a readable way
 - support for context managers and callable objects
+- onionizer middleware work seamlessly with sync and async functions (no need to write your logic twice anymore)
 
-## Motivation
+## 💡 Motivation
 
 Onionizer is inspired by the onion model of middleware in web frameworks such as Django, Flask and FastAPI.
 
@@ -90,14 +92,15 @@ If you did a bit of web developement, you certainly found this pattern very conv
 
 Hopefully, it could nudge communities share code more easily when they are using extensively the same specific API. Yes, I am looking at you `openai.ChatCompletion.create`.
 
-## Installation
+## 🚀 Installation
 
 ```bash
 pip install onionizer
 ```
 No extra dependencies required.
 
-## Middleware composition
+## 🔗 Middlewares composition
+
 
 `onionizer.as_decorator` was introduced in the introduction.
 Another way to use onionizer is to wrap a function with a list of middleware using `onionizer.wrap` :
@@ -134,47 +137,7 @@ def func(x, y):
     return x + y
 ```
 
-## How to mutate the arguments
-
-### yield a tuple or a dict
-
-The default way of using the yield statement is to pass either a tuple of positional arguments or a dict of keyword arguments.
-
-```python
-import onionizer
-def func(x, y):
-    return x + y
-
-def middleware1(x: int, y: int):
-    result = yield {'x': x, 'y': y + 1} # keyword arguments only
-    return result
-
-def middleware2(x: int, y: int):
-    result = yield x + 1, y # positional arguments only
-    return result
-
-def middleware3(x: int, y: int):
-    result = yield  # no mutation
-    return result + 1
-
-wrapped_func = onionizer.wrap(func, [middleware1, middleware2, middleware3])
-print(wrapped_func(x=0, y=0)) # 3
-```
-
-### yield MixedArgs
-
-In case you really need to pass both positional and keyword arguments, you can use `onionizer.MixedArgs` :
-
-```python
-import onionizer
-def middleware1(x: int, y: int):
-    result = yield onionizer.MixedArgs(args=(x+1, ), kwargs={'y': y+1}) # pass a tuple of positional arguments and a dict of keyword arguments
-    return result
-```
-
-## Advanced Usage
-
-### Support For Context Managers
+## 🛡️ Support For Context Managers
 
 Context managers are supported by onionizer.
 
@@ -201,9 +164,125 @@ Do use context manager if you need to do some cleanup after the wrapped function
 Indeed, having a `try-except` block around the yield statement will not work for onionizer middleware.
 
 
-### Early return works
+## 🕰️ Support For Async Functions
 
-Let's say you need a caching or validation middleware, you can return a value to skip the wrapped function or any remaining onion layers.
+If you want to write decorators that are compatible with both sync and async functions, *without onionizer* you would end up doing something like that:
+
+```python
+import asyncio
+import functools
+
+def dec(fn):
+    if asyncio.iscoroutinefunction(fn):
+        @functools.wraps(fn)
+        async def wrapper(*args, **kwargs):
+            # do some stuff here
+            res = await fn(*args, **kwargs)
+            # do some stuff there
+        return wrapper
+    else:
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            # do some stuff here
+            return fn(*args, **kwargs)
+            # do some stuff there
+        return wrapper
+```
+it's not very readable, isn't it? 
+
+It's also difficult to maintain.
+
+One temptation would be to abide to DRY principle and write a function for `do some stuff here` and another one for `do some stuff there`.
+But that's forcing you to add unwanted abstractions to fight against unwanted duplication.
+
+With onionizer, you don't have to think about it anymore. Just write your middleware as usual and onionizer will take care of the rest.
+
+```python
+import onionizer
+import asyncio
+
+async def func(x:int):
+    await asyncio.sleep(0.1)
+    return x
+
+def middleware1(x: int):
+    res = yield x+1, 
+    return res
+
+wrapped_func = onionizer.wrap(func, [middleware1])  
+result = await wrapped_func(0)  # as func is async, wrapped_func is async too
+print(result) # 1
+```
+
+** can my middleware be async too ? **
+
+Yes, it can. But this will work only if the wrapped function is async too.
+Also, there is a small caveat: you will need to yield the final result instead of returning it.
+This is a limitation of asynchronous generators (PEP 525).
+
+```python
+import asyncio
+import onionizer
+
+async def func(x:int):
+    await asyncio.sleep(0.1)
+    return x
+
+async def middleware1(x: int):
+    await asyncio.sleep(0.1)
+    res = yield x+1,
+    yield res
+
+wrapped_func = onionizer.wrap(func, [middleware1])
+result = await wrapped_func(0)
+print(result) # 1
+```
+
+## 📨 Passing Mutated Arguments
+
+### yield a tuple or a dict
+
+The default way of using the yield statement is to pass either a tuple of positional arguments or a dict of keyword arguments.
+
+```python
+import onionizer
+def func(x, y):
+    return x + y
+
+def middleware1(x: int, y: int):
+    result = yield {'x': x, 'y': y + 1} # keyword arguments only
+    return result
+
+def middleware2(x: int, y: int):
+    result = yield x + 1, y # positional arguments only
+    return result
+
+def middleware3(x: int, y: int):
+    result = yield  # no mutation
+    return result + 1
+
+wrapped_func = onionizer.wrap(func, [middleware1, middleware2, middleware3])
+print(wrapped_func(x=0, y=0)) # 3
+
+### 🌟 MixedArgs
+
+
+In case you really need to pass both positional and keyword arguments, you can use `onionizer.MixedArgs` :
+
+```python
+import onionizer
+def middleware1(x: int, y: int):
+    result = yield onionizer.MixedArgs(args=(x+1, ), kwargs={'y': y+1}) # pass a tuple of positional arguments and a dict of keyword arguments
+    return result
+```
+
+
+## 🔍 Advanced Usage
+
+### ↩️ Early return 
+
+
+Let's say you need a caching or a validation middleware, you can return a value to skip the wrapped function or any remaining onion layers.
 
 ```python
 import onionizer
@@ -279,6 +358,13 @@ print(wrapped_func(x=0, y=0))
 # 0
 ```
 
+### Early return with async functions
+
+Early return works with async functions too, but you will need to yield the result instead of returning it.
+This is a limitation of asynchronous generators (PEP 525).
+
+`yield onionizer.HARD_BYPASS(result)` will be understood by onionizer, as well as `yield onionizer.BYPASS(result)` to simulate a regular return.
+
 ### Typing
 
 onionizer let you type nicely your middleware so that it's made apparent what arguments they expect and what they return.
@@ -323,7 +409,7 @@ wrapped_func(None)
 print(middware.call_count)  # 2
  ```
 
-## Onionizer vs raw decorators
+## 🧐 Onionizer vs raw decorators
 
 ### tl;dr
 
@@ -337,7 +423,8 @@ Let's discuss the pros and cons of using onionizer vs raw decorators.
 
 pros for onionizer middleware: 
 - easier to read and write 
-- features that eases the creation of your onion model
+- features that eases the creation of your onion model.
+- free support for async functions
 
 cons for onionizer middleware:
 - extra library to depend on (or extra code if you copy and paste the code from onionizer.py in your utils.py, which is fine if you ask me)
@@ -351,17 +438,20 @@ where the author explain and demonstrates how the WSGI spec which defines the si
 When the very same API is used by many projects, I think it's a good idea to provide a framework to help code authors (yourself included) to build their own middleware without having to write raw decorators.
 Onionizer lets you bootstrap this framework.
 
-## Gotchas
+## 🚨 Gotchas
 
 - as stated earlier, sandwiching your `yield` statement with a `try-except` block won't work in a middleware. Use a context manager instead.
 - only sync functions can be wrapped by onionizer at the moment.
+- async middlewares can't use return statements, they have to yield the result instead (or yield `onionizer.HARD_BYPASS(result)` or `onionizer.BYPASS(result)`.
 
-## Roadmap/Ideas
+## 🗺️ Roadmap/Ideas
 
 - [ ] extend the support for other types of functions: methods, generators async functions..
 - [ ] (?) provide ports for other Middleware frameworks (e.g `@onionizer.as_wsgi_middleware`)
+- [ ] (?) Provide a more consistent middleware experience with no use of return statement (`yield Return(val) ?` and `yield HardReturn(val) ?`)
+- [ ] do not capture errors from the middleware itself
 
 
-## License
+## 📜 License
 
 `onionizer` is distributed under the terms of the [MIT](https://spdx.org/licenses/MIT.html) license.

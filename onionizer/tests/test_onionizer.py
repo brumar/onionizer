@@ -1,3 +1,4 @@
+import asyncio
 import contextlib
 
 import pytest as pytest
@@ -262,17 +263,29 @@ def test_incorrect_yields(func_that_adds):
     )
 
 
-@pytest.mark.parametrize('hardbypass', [True, False])
-def test_early_returns(func_that_adds, hardbypass):
-    def mixed_middleware1(x: int, y: int):
-        if x == 123:
-            if hardbypass:
-                return onionizer.HARD_BYPASS(-1)
+@pytest.mark.parametrize('hardbypass,onlyyields', [(True, False), (True, False)])
+def test_early_returns_but_with_yield(func_that_adds, hardbypass, onlyyields):
+    if onlyyields:
+        def mixed_middleware1(x: int, y: int):
+            if x == 123:
+                if hardbypass:
+                    yield onionizer.HARD_BYPASS(-1)
+                else:
+                    yield onionizer.BYPASS(-1)
             else:
-                return -1
-        else:
-            result = yield
-            return result
+                result = yield
+                return result
+    else:
+        def mixed_middleware1(x: int, y: int):
+            if x == 123:
+                if hardbypass:
+                    return onionizer.HARD_BYPASS(-1)
+                else:
+                    return -1
+            else:
+                result = yield
+                return result
+
 
     class MiddWare:
         def __init__(self):
@@ -294,3 +307,83 @@ def test_early_returns(func_that_adds, hardbypass):
     assert first_mid.called_out is not hardbypass
     assert last_mid.called_in is False
     assert last_mid.called_out is False
+
+
+def test_error_for_async_middleware_on_syncfunc(func_that_adds):
+    async def middleware1(x: int, y: int):
+        await asyncio.sleep(0.1)
+        res = yield
+        yield res
+
+    wrapped_func = onionizer.wrap(func_that_adds, [middleware1])
+    with pytest.raises(TypeError):
+        result = wrapped_func(x=1, y=2)
+
+
+@pytest.mark.asyncio
+async def test_sync_middleware_on_assyncfunc():
+
+    async def func(x:int):
+        await asyncio.sleep(0.1)
+        return x + 1
+    def middleware1(x: int):
+        res = yield (x+1, )
+        return res
+
+    wrapped_func = onionizer.wrap(func, [middleware1])
+    result = await wrapped_func(3)
+    assert result == 5
+
+@pytest.mark.asyncio
+async def test_async_middleware_on_assyncfunc():
+
+    async def func(x:int):
+        await asyncio.sleep(0.1)
+        return x + 1
+    async def middleware1(x: int):
+        await asyncio.sleep(0.1)
+        res = yield x+1,
+        yield res
+
+    wrapped_func = onionizer.wrap(func, [middleware1])
+    result = await wrapped_func(3)
+    assert result == 5
+
+@pytest.mark.asyncio
+async def test_async_middleware_hard_bypass():
+    async def func(x:int):
+        await asyncio.sleep(0.1)
+        return x
+    async def middleware1(x: int):
+        yield onionizer.HARD_BYPASS(-1)
+
+    wrapped_func = onionizer.wrap(func, [middleware1])
+    result = await wrapped_func(0)
+    assert result == -1
+
+@pytest.mark.asyncio
+async def test_async_middleware_normal_bypass():
+    async def func(x:int):
+        await asyncio.sleep(0.1)
+        return x
+    def mid0(x: int):
+        res = yield x,
+        return res * 2
+    async def middleware1(x: int):
+        yield onionizer.BYPASS(-1)
+
+    wrapped_func = onionizer.wrap(func, [mid0, middleware1])
+    result = await wrapped_func(0)
+    assert result == -2
+
+def test_middleware_raises_error(func_that_adds):
+    def middleware1(x: int, y: int):
+        raise AttributeError("middleware1 error")
+        yield 2
+        return 1
+
+    with pytest.raises(AttributeError) as e:
+        onionizer.wrap(func_that_adds, layers=[middleware1])(1, 2)
+    assert (
+            str(e.value) == "middleware1 error"
+    )

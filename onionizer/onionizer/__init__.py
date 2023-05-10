@@ -3,6 +3,7 @@ from .onionizer import (
     decorate,
     Out,
     HARD_BYPASS,
+    BYPASS,
     PositionalArgs,
     MixedArgs,
     KeywordArgs,

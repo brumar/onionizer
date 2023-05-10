@@ -1,8 +1,10 @@
+import asyncio
 import functools
 import inspect
 import typing
 from abc import ABC
 from contextlib import ExitStack
+from dataclasses import dataclass
 from typing import Callable, Any, Iterable, Sequence, TypeVar, Generator, Mapping
 
 T = TypeVar("T")  # pragma: no mutate
@@ -30,14 +32,45 @@ class HARD_BYPASS:
     def __init__(self, value):
         self.value = value
 
+class BYPASS:
+    """
+    This is a special value that can be returned by a middleware to bypass the wrapped function.
+    other middleware will be called.
+    """
+    def __init__(self, value):
+        self.value = value
 
 def _capture_last_message(coroutine, value_to_send: Any) -> Any:
-    val, has_ended = _capture_message(coroutine, value_to_send)
-    if not has_ended:
+    middleware_output = _capture_message(coroutine, value_to_send)
+    if middleware_output.status != "stop":
         raise RuntimeError(
             "Generator did not exhaust. Your function should yield exactly once."
         )
-    return val
+    return middleware_output.value
+
+# dataclass representing middleware output
+@dataclass
+class MiddlewareOutput:
+    value: Any
+    coroutine_ended: bool
+
+    @property
+    def status(self):
+        if isinstance(self.value, HARD_BYPASS):
+            return 'hard_stop'
+        if isinstance(self.value, BYPASS) or self.coroutine_ended:
+            return 'stop'
+
+    @property
+    def output(self):
+        if isinstance(self.value, (HARD_BYPASS, BYPASS)):
+            return self.value.value
+        else:
+            return self.value
+
+def get_middleware_output(coroutine):
+    middleware_output = _capture_message(coroutine, None)
+    return middleware_output
 
 
 def _leave_the_onion(coroutines: Sequence, output: Any) -> Any:
@@ -66,13 +99,40 @@ def decorate(layers):
     return decorator
 
 
-def _capture_message(coroutine, value_to_send: Any) -> Any:
+async def _capture_async_message(coroutine, value_to_send: Any) -> Any:
+    if hasattr(coroutine, "__next__"):
+        return _capture_message(coroutine, value_to_send)
+    elif hasattr(coroutine, "__anext__"):
+        try:
+            val = await coroutine.asend(value_to_send)
+            return MiddlewareOutput(val, coroutine_ended=False)
+        except StopAsyncIteration as e:
+            # expected if the generator is exhausted
+            return MiddlewareOutput(e.value, coroutine_ended=True)
+    else:
+        raise TypeError(
+            f"Middleware {coroutine} is not a coroutine. "
+            f"Did you forget to use a yield statement?"
+        )
+def _capture_message(coroutine, value_to_send: Any) -> MiddlewareOutput:
+    if not hasattr(coroutine, "__next__"):
+        raise TypeError(
+            f"Middleware {coroutine} is not a coroutine. "
+            f"Did you forget to use a yield statement?"
+        )
     try:
         val = coroutine.send(value_to_send)
-        return val, False
+        return MiddlewareOutput(val, coroutine_ended=False)
     except StopIteration as e:
         # expected if the generator is exhausted
-        return e.value, True
+        return MiddlewareOutput(e.value, coroutine_ended=True)
+
+
+async def async_get_middleware_output(coroutine):
+    output = _capture_async_message(coroutine, None)
+    if inspect.isawaitable(output):
+        output = await output
+    return output
 
 
 def wrap(
@@ -108,47 +168,88 @@ def wrap(
     """
     _check_validity(func, layers)
 
-    @functools.wraps(func)  # pragma: no mutate
-    def wrapped_func(*args, **kwargs):
-        arguments = MixedArgs(args, kwargs)
-        coroutines = []
-        a_middleware_exited_with_result = False
-        with ExitStack() as stack:
-            # programmatic support for context manager, possibly nested !
-            # https://docs.python.org/3/library/contextlib.html#contextlib.ExitStack
-            for middleware in layers:
-                if hasattr(middleware, "__enter__") and hasattr(middleware, "__exit__"):
-                    stack.enter_context(middleware)
-                    continue
-                coroutine = arguments.call_function(middleware)
-                if not isinstance(coroutine, typing.Generator):
-                    raise TypeError(
-                        f"Middleware {middleware} is not a coroutine. "
-                        f"Did you forget to use a yield statement?"
-                    )
-                try:
-                    raw_arguments, has_ended = _capture_message(coroutine, None)
-                    if isinstance(raw_arguments, HARD_BYPASS):
-                        return raw_arguments.value
-                    if has_ended:
-                        output = raw_arguments
-                        a_middleware_exited_with_result = True  # pragma: no mutate
-                        break
-                except AttributeError:
-                    raise TypeError(
-                        f"Middleware {middleware.__name__} is not a coroutine. "
-                        f"Did you forget to use a yield statement?"
-                    )
-                arguments = _refine(raw_arguments, arguments)
-                coroutines.append(coroutine)
-            # just reached the core of the onion
-            if a_middleware_exited_with_result is False:
-                output = arguments.call_function(func)
-            # now we go back to the surface
-            output = _leave_the_onion(coroutines, output)
-            return output
+    if not asyncio.iscoroutinefunction(func):
 
-    return wrapped_func
+        @functools.wraps(func)  # pragma: no mutate
+        def wrapped_func(*args, **kwargs):
+            arguments = MixedArgs(args, kwargs)
+            coroutines = []
+            a_middleware_exited_with_result = False
+            with ExitStack() as stack:
+                # programmatic support for context manager, possibly nested !
+                # https://docs.python.org/3/library/contextlib.html#contextlib.ExitStack
+                for middleware in layers:
+                    if hasattr(middleware, "__enter__") and hasattr(middleware, "__exit__"):
+                        stack.enter_context(middleware)
+                        continue
+                    coroutine = arguments.call_function(middleware)
+                    if not isinstance(coroutine, typing.Generator):
+
+                        raise TypeError(
+                            f"Middleware {middleware} is not a coroutine. "
+                            f"Did you forget to use a yield statement?"
+                        )
+                    middleware_output = get_middleware_output(coroutine)
+                    if middleware_output.status == "hard_stop":
+                        return middleware_output.output
+                    if middleware_output.status == "stop":
+                        a_middleware_exited_with_result = True
+                        break
+                    arguments = _refine(middleware_output.output, arguments)
+                    coroutines.append(coroutine)
+                # just reached the core of the onion
+                if a_middleware_exited_with_result is False:
+                    output = arguments.call_function(func)
+                else:
+                    output = middleware_output.output
+                # now we go back to the surface
+                output = _leave_the_onion(coroutines, output)
+                return output
+
+
+        return wrapped_func
+
+    else:
+        @functools.wraps(func)  # pragma: no mutate
+        async def wrapped_func(*args, **kwargs):
+            with ExitStack() as stack:
+                arguments = MixedArgs(args, kwargs)
+                coroutines = []
+                a_middleware_exited_with_result = False
+                # programmatic support for context manager, possibly nested !
+                # https://docs.python.org/3/library/contextlib.html#contextlib.ExitStack
+                for middleware in layers:
+                    if hasattr(middleware, "__enter__") and hasattr(middleware, "__exit__"):
+                        stack.enter_context(middleware)
+                        continue
+                    coroutine = arguments.call_function(middleware)
+                    if not isinstance(coroutine, typing.Generator) and not isinstance(coroutine, typing.AsyncGenerator):
+
+                        raise TypeError(
+                            f"Middleware {middleware} is not a coroutine. "
+                            f"Did you forget to use a yield statement?"
+                        )
+                    middleware_output = await async_get_middleware_output(coroutine)
+                    if middleware_output.status == "hard_stop":
+                        return middleware_output.output
+                    if middleware_output.status == "stop":
+                        a_middleware_exited_with_result = True
+                        break
+                    arguments = _refine(middleware_output.output, arguments)
+                    coroutines.append(coroutine)
+                # just reached the core of the onion
+                if a_middleware_exited_with_result is False:
+                    output = await arguments.call_function(func)
+                else:
+                    output = middleware_output.output
+                # now we go back to the surface
+                for coroutine1 in reversed(coroutines):
+                # reversed to respect onion model
+                    middleware_output = await _capture_async_message(coroutine1, output)
+                    output = middleware_output.output
+                return output
+        return wrapped_func
+
 
 
 def _check_validity(func, layers):
